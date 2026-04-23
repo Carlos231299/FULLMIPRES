@@ -30,7 +30,7 @@ export const AdminLicensesPage = () => {
   const fetchLicenses = async (u = user, p = password) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/admin/licenses`, {
+      const response = await fetch(`${CLEAN_BASE_URL}/api/admin/licenses`, {
         headers: { 
           'x-admin-user': u,
           'x-admin-password': p 
@@ -60,7 +60,7 @@ export const AdminLicensesPage = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/admin/login`, {
+      const response = await fetch(`${CLEAN_BASE_URL}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user, password })
@@ -80,7 +80,7 @@ export const AdminLicensesPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${BACKEND_URL}/api/admin/licenses`, {
+      const response = await fetch(`${CLEAN_BASE_URL}/api/admin/licenses`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -118,7 +118,7 @@ export const AdminLicensesPage = () => {
 
     if (result.isConfirmed) {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/admin/licenses/${targetNit}`, {
+        const response = await fetch(`${CLEAN_BASE_URL}/api/admin/licenses/${targetNit}`, {
           method: 'DELETE',
           headers: { 
             'x-admin-user': user,
