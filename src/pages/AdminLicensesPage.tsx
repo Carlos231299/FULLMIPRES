@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:3001';
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || '';
+// Eliminamos el '/api' del final si viene en la variable, ya que las rutas de abajo ya lo incluyen o lo asumen.
+const CLEAN_BASE_URL = BACKEND_URL.endsWith('/api') ? BACKEND_URL.slice(0, -4) : BACKEND_URL;
 
 interface License {
   nit: string;
