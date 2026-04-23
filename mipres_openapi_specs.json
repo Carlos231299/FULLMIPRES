@@ -1,0 +1,178 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "MIPRES",
+    "version": "1.0.0",
+    "description": ""
+  },
+  "servers": [
+    {
+      "url": "{{MIPRES}}"
+    }
+  ],
+  "paths": {
+    "/GenerarToken/57304482/7619D137-4D48-4348-BA74-93A7A196F880": {
+      "get": {
+        "summary": "validate token",
+        "responses": {}
+      }
+    },
+    "/ReporteEntregaXPrescripcion/57304482/YaaUdJKPWpaObunKTdoutpbb-pIP765iIBPs5gaVAqw=/20260228110000536168": {
+      "get": {
+        "summary": "Verify prescription",
+        "responses": {}
+      }
+    },
+    "/DireccionamientoXPrescripcion/57304482/YaaUdJKPWpaObunKTdoutpbb-pIP765iIBPs5gaVAqw=/20260228110000536168": {
+      "get": {
+        "summary": "view prescriptions",
+        "responses": {}
+      }
+    },
+    "/Programacion/57304482/YaaUdJKPWpaObunKTdoutpbb-pIP765iIBPs5gaVAqw=": {
+      "put": {
+        "summary": "program delivery",
+        "responses": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ID": {
+                    "type": "integer"
+                  },
+                  "FecMaxEnt": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "TipoIDSedeProv": {
+                    "type": "string"
+                  },
+                  "NoIDSedeProv": {
+                    "type": "string"
+                  },
+                  "CodSedeProv": {
+                    "type": "string"
+                  },
+                  "CodSerTecAEntregar": {
+                    "type": "string",
+                    "format": "color"
+                  },
+                  "CantTotAEntregar": {
+                    "type": "string",
+                    "format": "utc-millisec"
+                  }
+                }
+              },
+              "example": {
+                "ID": 107869059,
+                "FecMaxEnt": "2026-03-15",
+                "TipoIDSedeProv": "NI",
+                "NoIDSedeProv": "{{NoIDSedeProv}}",
+                "CodSedeProv": "{{CodSedeProv}}",
+                "CodSerTecAEntregar": "139",
+                "CantTotAEntregar": "90"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Entrega/57304482/YaaUdJKPWpaObunKTdoutpbb-pIP765iIBPs5gaVAqw=": {
+      "put": {
+        "summary": "delivery",
+        "responses": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ID": {
+                    "type": "integer"
+                  },
+                  "CodSerTecEntregado": {
+                    "type": "string",
+                    "format": "color"
+                  },
+                  "CantTotEntregada": {
+                    "type": "string",
+                    "format": "utc-millisec"
+                  },
+                  "EntTotal": {
+                    "type": "integer"
+                  },
+                  "CausaNoEntrega": {
+                    "type": "integer"
+                  },
+                  "FecEntrega": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "NoLote": {
+                    "type": "string"
+                  },
+                  "TipoIDRecibe": {
+                    "type": "string"
+                  },
+                  "NoIDRecibe": {
+                    "type": "string",
+                    "format": "utc-millisec"
+                  }
+                }
+              },
+              "example": {
+                "ID": 107869059,
+                "CodSerTecEntregado": "139",
+                "CantTotEntregada": "90",
+                "EntTotal": 1,
+                "CausaNoEntrega": 0,
+                "FecEntrega": "2026-03-19",
+                "NoLote": "",
+                "TipoIDRecibe": "CC",
+                "NoIDRecibe": "1124012641"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ReporteEntrega/57304482/YaaUdJKPWpaObunKTdoutpbb-pIP765iIBPs5gaVAqw=": {
+      "put": {
+        "summary": "report delivery",
+        "responses": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ID": {
+                    "type": "integer"
+                  },
+                  "EstadoEntrega": {
+                    "type": "integer"
+                  },
+                  "CausaNoEntrega": {
+                    "type": "integer"
+                  },
+                  "ValorEntregado": {
+                    "type": "string",
+                    "format": "color"
+                  }
+                }
+              },
+              "example": {
+                "ID": 107869059,
+                "EstadoEntrega": 1,
+                "CausaNoEntrega": 0,
+                "ValorEntregado": "419940"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
