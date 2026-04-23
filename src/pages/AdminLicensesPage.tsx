@@ -111,8 +111,7 @@ export const AdminLicensesPage = () => {
       cancelButtonColor: '#64748b',
       confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar',
-      background: '#ffffff',
-      borderRadius: '16px'
+      background: '#ffffff'
     });
 
     if (result.isConfirmed) {
