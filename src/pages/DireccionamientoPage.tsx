@@ -181,7 +181,7 @@ export const DireccionamientoPage = () => {
           <>
             <DataGrid 
               data={{ ...selectedResult, id_local: idLocalAsociado }} 
-              title="Información Completa" 
+              title="Información del Direccionamiento" 
               onOpenInAsistente={handleJumpToAsistente} 
             />
             <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>

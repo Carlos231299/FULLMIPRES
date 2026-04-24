@@ -34,7 +34,7 @@ export const DataGrid = ({ data, title, onOpenInAsistente }: DataGridProps) => {
             marginBottom: (data.NoEntrega || data.Noentrega) ? '0.5rem' : '0'
           }}>
             <h3 style={{ margin: 0, color: '#1e293b', fontSize: '1.1rem' }}>
-              {title === 'Información enviada a SISPRO' || title === 'Información Completa' ? 'Detalle de facturación' : title}
+              {title}
             </h3>
             {onOpenInAsistente && (
               <button 

@@ -249,7 +249,7 @@ export const ProgramacionPage = () => {
           <>
             <DataGrid 
               data={{ ...selectedResult, id_local: idLocalAsociado }} 
-              title="Información Completa" 
+              title="Información de la Programación" 
               onOpenInAsistente={handleJumpToAsistente} 
             />
             <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>

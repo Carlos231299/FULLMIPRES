@@ -258,7 +258,7 @@ export const EntregaPage = () => {
       >
         {selectedResult && (
           <>
-            <DataGrid data={{ ...selectedResult, id_local: idLocalAsociado }} title="Información Completa" onOpenInAsistente={idLocalAsociado ? handleJumpToAsistente : undefined} />
+            <DataGrid data={{ ...selectedResult, id_local: idLocalAsociado }} title="Información de la Entrega" onOpenInAsistente={idLocalAsociado ? handleJumpToAsistente : undefined} />
             <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
               {!selectedResult.FecAnulacion && (
                 <button 
