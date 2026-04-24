@@ -175,7 +175,7 @@ export const DireccionamientoPage = () => {
       <Modal 
         isOpen={selectedResult !== null} 
         onClose={() => setSelectedResult(null)} 
-        title="Detalle de facturación"
+        title="Detalle de Direccionamiento"
       >
         {selectedResult && (
           <>

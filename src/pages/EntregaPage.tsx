@@ -254,7 +254,7 @@ export const EntregaPage = () => {
       <Modal 
         isOpen={selectedResult !== null} 
         onClose={() => setSelectedResult(null)} 
-        title="Detalle de facturación"
+        title="Detalle de Entrega"
       >
         {selectedResult && (
           <>
