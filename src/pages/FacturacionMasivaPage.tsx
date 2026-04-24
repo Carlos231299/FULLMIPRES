@@ -4,7 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import * as xlsx from 'xlsx';
 import { ExcelAutoOpenHint } from '../components/ExcelAutoOpenHint';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:3001';
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || '';
+// Eliminamos el '/api' si viene en la variable, para evitar duplicados en las rutas
+const CLEAN_BASE_URL = BACKEND_URL.endsWith('/api') ? BACKEND_URL.slice(0, -4) : BACKEND_URL;
 
 export const FacturacionMasivaPage = () => {
   const { nit, token } = useAuth();
@@ -83,7 +85,7 @@ export const FacturacionMasivaPage = () => {
     const endpoint = mode === 'reportar' ? '/api/batch-billing/excel' : '/api/batch-billing/annul-excel';
 
     try {
-      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+      const response = await fetch(`${CLEAN_BASE_URL}${endpoint}`, {
         method: 'POST',
         body: formData,
       });
