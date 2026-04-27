@@ -50,6 +50,9 @@ export const asistenteEntrega = (id: number, body: object) =>
 export const asistenteReporte = (id: number, body: object) =>
   api.put(`/wizard/${id}/reporte`, body).then(r => r.data);
 
+export const asistenteSkipStep = (id: number, step: number) =>
+  api.post(`/wizard/${id}/skip-step`, { step }).then(r => r.data);
+
 export const syncAsistenteFromSispro = (payload: { nit: string, token: string, no_prescripcion: string, sisproRecord: any }) =>
   api.post('/wizard/sync-from-sispro', payload).then(res => res.data);
 

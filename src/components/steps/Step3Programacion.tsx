@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAsistente } from '../../context/AsistenteContext';
-import { asistenteProgramacion } from '../../services/api';
+import { asistenteProgramacion, asistenteSkipStep } from '../../services/api';
 import { getErrorMsg } from '../../utils/errorHelper';
 
 export const Step3Programacion = () => {
@@ -84,6 +84,24 @@ export const Step3Programacion = () => {
     }
   };
 
+  const handleSkip = async () => {
+    if (!proceso?.id_local) return;
+    setIsLoading(true);
+    clearError();
+    try {
+      const response = await asistenteSkipStep(proceso.id_local, 3);
+      if (response.ok && response.data?.proceso) {
+        updateProcesoFromDb(response.data.proceso);
+      } else {
+        setError('No se pudo obtener la programación existente de SISPRO.');
+      }
+    } catch (err: any) {
+      setError(getErrorMsg(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   console.log("disponibles", proceso?.disponibles);
   return (
     <div>
@@ -109,6 +127,25 @@ export const Step3Programacion = () => {
           ✓ {successMsg}
         </div>
       )}
+
+      {/* Botón de escape: aparece cuando hay un error (el paso ya fue hecho) */}
+      <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+        <button
+          type="button"
+          onClick={handleSkip}
+          disabled={isLoading}
+          style={{
+            background: '#f59e0b', color: 'white', border: 'none',
+            borderRadius: '8px', padding: '0.6rem 1.2rem',
+            fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem'
+          }}
+        >
+          {isLoading ? '...' : '⏭️ Este paso ya está hecho → Ir al Paso 4'}
+        </button>
+        <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+          Úsalo solo si SISPRO ya tiene esta programación registrada.
+        </p>
+      </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 1rem' }}>
 

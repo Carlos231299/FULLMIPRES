@@ -48,104 +48,95 @@ router.post('/:id/verificar-direccionamiento', async (req, res) => {
     const { NoPrescripcion } = req.body;
     if (!NoPrescripcion) return res.status(400).json({ ok: false, error: 'NoPrescripcion es requerida' });
 
-    // 1. Obtener IDs ya entregados (para omitirlos)
-    let deliveredIds = [];
-    try {
-      const reporte = await MipresApi.getReporteEntregaXPrescripcion(proceso.nit, proceso.token, NoPrescripcion);
-      if (Array.isArray(reporte)) {
-        deliveredIds = reporte.map(item => item.ID || item.IdEntrega);
-      }
-    } catch (e) {
-      console.warn('Sin reporte previo de entrega');
-    }
+    // Consulta simple del direccionamiento en SISPRO (sin deep sync)
+    const dirs = await MipresApi.getDireccionamientoXPrescripcion(proceso.nit, proceso.token, NoPrescripcion);
+    const allDirs = Array.isArray(dirs) ? dirs : [];
 
-    // 2. CONSULTA PROFUNDA Y SINCRONIZACIÓN AUTOMÁTICA
-    // Intentamos encontrar el rastro más avanzado en SISPRO para posicionar al usuario
-    const [resDirs, resProgs, resEnts, resReps] = await Promise.all([
-      MipresApi.getDireccionamientoXPrescripcion(proceso.nit, proceso.token, NoPrescripcion).catch(() => []),
-      MipresApi.getProgramacionXPrescripcion(proceso.nit, proceso.token, NoPrescripcion).catch(() => []),
-      MipresApi.getEntregaXPrescripcion(proceso.nit, proceso.token, NoPrescripcion).catch(() => []),
-      MipresApi.getReporteEntregaXPrescripcion(proceso.nit, proceso.token, NoPrescripcion).catch(() => [])
-    ]);
-
-    const allDirs = Array.isArray(resDirs) ? resDirs : [];
     if (allDirs.length === 0) {
       return res.status(404).json({ ok: false, error: 'No se encontraron direccionamientos para esta prescripción en SISPRO.' });
     }
 
-    // Buscamos el direccionamiento más "avanzado"
-    // Prioridad: El que tenga reporte > el que tenga entrega > el que tenga programación > cualquiera disponible
-    let registroGanador = allDirs[0];
-    let encontrado = false;
+    // Usar el primer direccionamiento disponible como base
+    const dirSelect = allDirs[0];
 
-    // Función para buscar match en los arrays de SISPRO
-    const findMatch = (dirs, targetArray, idKey) => {
-      for (const d of dirs) {
-        const id = String(d.IdDireccionamiento || d.ID || '');
-        const match = targetArray.find(item => String(item.IdDireccionamiento || item.ID || item.IDDireccionamiento) === id);
-        if (match) return { dir: d, detail: match };
-      }
-      return null;
-    };
-
-    const matchRep = findMatch(allDirs, Array.isArray(resReps) ? resReps : [], 'IdReporteEntrega');
-    const matchEnt = findMatch(allDirs, Array.isArray(resEnts) ? resEnts : [], 'IdEntrega');
-    const matchProg = findMatch(allDirs, Array.isArray(resProgs) ? resProgs : [], 'IdProgramacion');
-
-    if (matchRep) {
-      registroGanador = { ...matchRep.dir, ...matchRep.detail };
-      encontrado = true;
-    } else if (matchEnt) {
-      registroGanador = { ...matchEnt.dir, ...matchEnt.detail };
-      encontrado = true;
-    } else if (matchProg) {
-      registroGanador = { ...matchProg.dir, ...matchProg.detail };
-      encontrado = true;
-    }
-
-    // 3. Sincronizar con la base de datos local
+    // Sincronizar con la base de datos local (solo datos básicos del direccionamiento)
     const procesoSincronizado = await Proceso.upsertFromSispro({
       nit: proceso.nit,
       token: proceso.token,
       no_prescripcion: NoPrescripcion,
-      data: registroGanador
+      data: dirSelect
     });
 
-    // 4. Guardar explícitamente los IDs encontrados en SISPRO para evitar pérdidas
-    //    por variaciones en nombres de campos (IdProgramacion vs IDProgramacion etc.)
-    const idProgExplicito = matchProg?.detail?.IdProgramacion
-      || matchProg?.detail?.IDProgramacion
-      || matchProg?.detail?.ID
-      || '';
-    const idEntExplicito  = matchEnt?.detail?.IdEntrega
-      || matchEnt?.detail?.IDEntrega
-      || matchEnt?.detail?.ID
-      || '';
-    const idRepExplicito  = matchRep?.detail?.IdReporteEntrega
-      || matchRep?.detail?.IDReporteEntrega
-      || matchRep?.detail?.ID
-      || '';
-
-    if (idProgExplicito || idEntExplicito || idRepExplicito) {
-      await Proceso.update(procesoSincronizado.id_local, {
-        ...(idProgExplicito && { id_programacion: String(idProgExplicito) }),
-        ...(idEntExplicito  && { id_entrega:      String(idEntExplicito)  }),
-        ...(idRepExplicito  && { id_reporte:      String(idRepExplicito)  }),
-      });
-    }
-
-    // Guardamos también el listado de todos los direccionamientos disponibles por si el usuario quiere cambiar
+    // Guardar el listado completo de direccionamientos disponibles
     await Proceso.update(procesoSincronizado.id_local, {
       disponibles: JSON.stringify(allDirs)
     });
 
     const actualizado = await Proceso.getById(procesoSincronizado.id_local);
-    res.json({ ok: true, data: { proceso: actualizado, mipresResponse: registroGanador } });
+    res.json({ ok: true, data: { proceso: actualizado, mipresResponse: dirSelect } });
   } catch (err) {
-    console.error('[Error en Sincronización Deep]', err);
+    console.error('[Error en Verificacion Direccionamiento]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+// ============================================================
+// SALTAR PASO (Ya realizado en SISPRO)
+// Consulta SISPRO para obtener el ID del paso existente,
+// lo guarda en la BD y permite avanzar al siguiente paso.
+// ============================================================
+router.post('/:id/skip-step', async (req, res) => {
+  try {
+    const proceso = await Proceso.getById(req.params.id);
+    if (!proceso) return res.status(404).json({ ok: false, error: 'Proceso no encontrado' });
+
+    const { step } = req.body;
+    const noPres = proceso.no_prescripcion;
+
+    if (!noPres) {
+      return res.status(400).json({ ok: false, error: 'No hay prescripción asociada al proceso. Regresa al paso anterior.' });
+    }
+
+    if (step === 3) {
+      // Buscar programación existente en SISPRO
+      const progs = await MipresApi.getProgramacionXPrescripcion(proceso.nit, proceso.token, noPres);
+      const prog = Array.isArray(progs) && progs.length > 0 ? progs[0] : null;
+      if (!prog) return res.status(404).json({ ok: false, error: 'No se encontró programación en SISPRO para esta prescripción.' });
+
+      const idProg = String(prog.IdProgramacion || prog.IDProgramacion || prog.ID || '');
+      await Proceso.update(proceso.id_local, { id_programacion: idProg, estado: 'PROGRAMADO' });
+
+    } else if (step === 4) {
+      // Buscar entrega existente en SISPRO
+      const ents = await MipresApi.getEntregaXPrescripcion(proceso.nit, proceso.token, noPres);
+      const ent = Array.isArray(ents) && ents.length > 0 ? ents[0] : null;
+      if (!ent) return res.status(404).json({ ok: false, error: 'No se encontró entrega en SISPRO para esta prescripción.' });
+
+      const idEnt = String(ent.IdEntrega || ent.IDEntrega || ent.ID || '');
+      await Proceso.update(proceso.id_local, { id_entrega: idEnt, estado: 'ENTREGADO' });
+
+    } else if (step === 5) {
+      // Buscar reporte existente en SISPRO
+      const reps = await MipresApi.getReporteEntregaXPrescripcion(proceso.nit, proceso.token, noPres);
+      const rep = Array.isArray(reps) && reps.length > 0 ? reps[0] : null;
+      if (!rep) return res.status(404).json({ ok: false, error: 'No se encontró reporte en SISPRO para esta prescripción.' });
+
+      const idRep = String(rep.IdReporteEntrega || rep.IDReporteEntrega || rep.ID || '');
+      await Proceso.update(proceso.id_local, { id_reporte: idRep, estado: 'REPORTADO' });
+
+    } else {
+      return res.status(400).json({ ok: false, error: `Paso ${step} no es válido para saltar.` });
+    }
+
+    const actualizado = await Proceso.getById(proceso.id_local);
+    res.json({ ok: true, data: { proceso: actualizado } });
+  } catch (err) {
+    console.error('[Error en Skip Step]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+
 
 // ============================================================
 // PASO 3 - Programacion con Payload Fijo y Automatizado

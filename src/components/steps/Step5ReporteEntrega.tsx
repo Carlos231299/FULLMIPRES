@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAsistente } from '../../context/AsistenteContext';
 
-import { asistenteReporte } from '../../services/api';
+import { asistenteReporte, asistenteSkipStep } from '../../services/api';
 import { exportProcessToExcel } from '../../utils/excelExport';
 import { getErrorMsg } from '../../utils/errorHelper';
 
@@ -104,6 +104,24 @@ export const Step5ReporteEntrega = () => {
     }
   };
 
+  const handleSkip = async () => {
+    if (!proceso?.id_local) return;
+    setIsLoading(true);
+    clearError();
+    try {
+      const response = await asistenteSkipStep(proceso.id_local, 5);
+      if (response.ok && response.data?.proceso) {
+        updateProcesoFromDb(response.data.proceso);
+      } else {
+        setError('No se pudo obtener el reporte existente de SISPRO.');
+      }
+    } catch (err: any) {
+      setError(getErrorMsg(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -119,6 +137,26 @@ export const Step5ReporteEntrega = () => {
         <p style={{ margin: 0 }}>📌 <strong>ID Direccionamiento a referenciar:</strong> {proceso?.id_mipres || 'Ninguno'}</p>
       </div>
 
+      {/* Botón de escape si el reporte ya fue registrado en SISPRO */}
+      {proceso?.estado !== 'REPORTADO' && (
+        <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+          <button
+            type="button"
+            onClick={handleSkip}
+            disabled={isLoading}
+            style={{
+              background: '#f59e0b', color: 'white', border: 'none',
+              borderRadius: '8px', padding: '0.6rem 1.2rem',
+              fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem'
+            }}
+          >
+            {isLoading ? '...' : '⏭️ Este paso ya está hecho → Marcar como Completado'}
+          </button>
+          <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+            Úsalo solo si SISPRO ya tiene este reporte registrado.
+          </p>
+        </div>
+      )}
       <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
         Finaliza el proceso reportando el valor económico de lo entregado o los motivos de no entrega física.
       </p>
