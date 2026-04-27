@@ -111,6 +111,29 @@ router.post('/:id/verificar-direccionamiento', async (req, res) => {
       data: registroGanador
     });
 
+    // 4. Guardar explícitamente los IDs encontrados en SISPRO para evitar pérdidas
+    //    por variaciones en nombres de campos (IdProgramacion vs IDProgramacion etc.)
+    const idProgExplicito = matchProg?.detail?.IdProgramacion
+      || matchProg?.detail?.IDProgramacion
+      || matchProg?.detail?.ID
+      || '';
+    const idEntExplicito  = matchEnt?.detail?.IdEntrega
+      || matchEnt?.detail?.IDEntrega
+      || matchEnt?.detail?.ID
+      || '';
+    const idRepExplicito  = matchRep?.detail?.IdReporteEntrega
+      || matchRep?.detail?.IDReporteEntrega
+      || matchRep?.detail?.ID
+      || '';
+
+    if (idProgExplicito || idEntExplicito || idRepExplicito) {
+      await Proceso.update(procesoSincronizado.id_local, {
+        ...(idProgExplicito && { id_programacion: String(idProgExplicito) }),
+        ...(idEntExplicito  && { id_entrega:      String(idEntExplicito)  }),
+        ...(idRepExplicito  && { id_reporte:      String(idRepExplicito)  }),
+      });
+    }
+
     // Guardamos también el listado de todos los direccionamientos disponibles por si el usuario quiere cambiar
     await Proceso.update(procesoSincronizado.id_local, {
       disponibles: JSON.stringify(allDirs)
