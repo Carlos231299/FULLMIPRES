@@ -263,9 +263,32 @@ router.put('/:id/entrega', async (req, res) => {
 // ============================================================
 router.put('/:id/reporte', async (req, res) => {
   try {
-    const proceso = await Proceso.getById(req.params.id);
+    let proceso = await Proceso.getById(req.params.id);
+
+    // ── AUTO-RECUPERACIÓN: si id_entrega está vacío, consultamos SISPRO ──
+    const idEntActual = proceso.id_entrega;
+    const necesitaRecuperar = !idEntActual || idEntActual === '' || idEntActual === '0';
+
+    if (necesitaRecuperar && proceso.no_prescripcion) {
+      try {
+        console.log('[Reporte] id_entrega ausente, recuperando de SISPRO...');
+        const ents = await MipresApi.getEntregaXPrescripcion(proceso.nit, proceso.token, proceso.no_prescripcion);
+        const ent = Array.isArray(ents) && ents.length > 0 ? ents[0] : null;
+        if (ent) {
+          const idEnt = String(ent.IdEntrega || ent.IDEntrega || ent.ID || '');
+          if (idEnt && idEnt !== '0') {
+            await Proceso.update(proceso.id_local, { id_entrega: idEnt, estado: 'ENTREGADO' });
+            proceso = await Proceso.getById(proceso.id_local);
+            console.log(`[Reporte] id_entrega recuperado de SISPRO: ${idEnt}`);
+          }
+        }
+      } catch (eRecover) {
+        console.warn('[Reporte] No se pudo recuperar id_entrega de SISPRO:', eRecover.message);
+      }
+    }
+
     let payload = {
-      ID: Number(req.body.ID || proceso.id_programacion || proceso.id_mipres),
+      ID: Number(req.body.ID || proceso.id_entrega || proceso.id_programacion || proceso.id_mipres),
       EstadoEntrega: Number(req.body.EstadoEntrega ?? 1),
       CausaNoEntrega: Number(req.body.EstadoEntrega) === 1 ? 0 : Number(req.body.CausaNoEntrega || 0),
       ValorEntregado: String(req.body.ValorEntregado || '0')

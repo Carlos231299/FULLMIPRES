@@ -163,8 +163,9 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
               const idParaEntrega = Number(idProg || idDir);
 
               // 3. Entregar (P4) - Con causa 0 (Efectiva) por defecto para facturar
+              let idEntregaCiclo = deliveryFinal?.IdEntrega || deliveryFinal?.ID || null;
               if (!deliveryFinal) {
-                await MipresApi.entrega(nit, token, {
+                const resP4 = await MipresApi.entrega(nit, token, {
                   ID: idParaEntrega,
                   CodSerTecEntregado: codTecFila,
                   CantTotEntregada: Number(dirSelect.CantTotAEntregar),
@@ -174,14 +175,17 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
                   TipoIDRecibe: 'CC',
                   NoIDRecibe: '12345678' // Genérico para masivo
                 }).catch(() => null);
+                const p4Data = Array.isArray(resP4) ? resP4[0] : resP4;
+                idEntregaCiclo = p4Data?.IdEntrega || p4Data?.ID || idParaEntrega;
               }
 
-              // 4. Reportar (P5)
+              // 4. Reportar (P5) — usa el id de la Entrega, no el de la Programación
+              const idParaReporte = Number(idEntregaCiclo || idParaEntrega);
               const resP5 = await MipresApi.reporteEntrega(nit, token, {
-                ID: idParaEntrega,
+                ID: idParaReporte,
                 EstadoEntrega: 1,
                 CausaNoEntrega: 0,
-                ValorEntregado: 0 // Se actualizará con el valor de la factura si es necesario
+                ValorEntregado: 0
               });
               
               reportFinal = Array.isArray(resP5) ? resP5[0] : resP5;
