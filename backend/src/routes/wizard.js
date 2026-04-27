@@ -160,8 +160,8 @@ router.put('/:id/entrega', async (req, res) => {
       CausaNoEntrega: Number(req.body.CausaNoEntrega || 0),
       FecEntrega: req.body.FecEntrega,
       NoLote: String(req.body.NoLote || ''),
-      TipoIDRecibe: String(req.body.TipoIDRecibe || 'CC'),
-      NoIDRecibe: String(req.body.NoIDRecibe || '')
+      TipoIDRecibe: String(req.body.TipoIDRecibe || req.body.TipoIDPaciente || 'CC'),
+      NoIDRecibe: String(req.body.NoIDRecibe || req.body.NoIDPaciente || '')
     };
 
     // LIMPIEZA PARA NO ENTREGA: SISPRO prohíbe ciertos campos si CausaNoEntrega != 0

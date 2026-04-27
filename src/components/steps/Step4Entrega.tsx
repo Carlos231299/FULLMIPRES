@@ -7,8 +7,8 @@ export const Step4Entrega = () => {
 
   const [formData, setFormData] = useState({
     FecEntrega: new Date().toISOString().split('T')[0],
-    TipoIDPaciente: 'CC',
-    NoIDPaciente: '',
+    TipoIDRecibe: 'CC',
+    NoIDRecibe: '',
     CodMunEnt: '05001',
     CausaNoEntrega: '0',
     ValorEntregado: '0'
@@ -34,7 +34,7 @@ export const Step4Entrega = () => {
     try {
       const response = await asistenteEntrega(proceso.id_local, {
         ...formData,
-        ID: Number(proceso.id_programacion)
+        ID: Number(proceso.id_mipres)
       });
 
       if (response.ok && response.data?.proceso) {
@@ -63,7 +63,7 @@ export const Step4Entrega = () => {
       </div>
 
       <div className="alert" style={{ backgroundColor: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-        <p style={{ margin: '0 0 0.5rem 0' }}>📌 <strong>ID Programación a referenciar:</strong> {proceso?.id_programacion || 'Ninguno'}</p>
+        <p style={{ margin: '0 0 0.5rem 0' }}>📌 <strong>ID Direccionamiento a referenciar:</strong> {proceso?.id_mipres || 'Ninguno'}</p>
         <p style={{ margin: 0 }}>Recuerda verificar bien las cantidades antes de confirmar.</p>
       </div>
 
@@ -79,8 +79,8 @@ export const Step4Entrega = () => {
           <input type="date" name="FecEntrega" className="form-control" value={formData.FecEntrega} onChange={handleChange} required disabled={isLoading || !!successMsg} />
         </div>
         <div className="form-group">
-          <label>Tipo ID Paciente:</label>
-          <select name="TipoIDPaciente" className="form-control" value={formData.TipoIDPaciente} onChange={handleChange} required disabled={isLoading || !!successMsg}>
+          <label>Tipo ID Recibe:</label>
+          <select name="TipoIDRecibe" className="form-control" value={formData.TipoIDRecibe} onChange={handleChange} required disabled={isLoading || !!successMsg}>
             <option value="CC">Cédula de Ciudadanía</option>
             <option value="TI">Tarjeta de Identidad</option>
             <option value="CE">Cédula de Extranjería</option>
@@ -91,8 +91,8 @@ export const Step4Entrega = () => {
           </select>
         </div>
         <div className="form-group">
-          <label>Número ID Paciente:</label>
-          <input type="text" name="NoIDPaciente" className="form-control" value={formData.NoIDPaciente} onChange={handleChange} required placeholder="Documento del que recibe" disabled={isLoading || !!successMsg} />
+          <label>Número ID Recibe:</label>
+          <input type="text" name="NoIDRecibe" className="form-control" value={formData.NoIDRecibe} onChange={handleChange} required placeholder="Documento del que recibe" disabled={isLoading || !!successMsg} />
         </div>
         <div className="form-group">
           <label>Causa No Entrega:</label>
