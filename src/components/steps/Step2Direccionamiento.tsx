@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAsistente } from '../../context/AsistenteContext';
 import { useAuth } from '../../context/AuthContext';
 import { asistenteVerificarDireccionamiento, createProceso } from '../../services/api';
+import { getErrorMsg } from '../../utils/errorHelper';
 
 // Ahora es el Paso 1 real del Asistente, aunque conserve el nombre.
 export const Step2Direccionamiento = () => {
@@ -64,7 +65,7 @@ export const Step2Direccionamiento = () => {
         setError('Respuesta inválida del servidor.');
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Error desconocido al Consultar MIPRES');
+      setError(getErrorMsg(err));
     } finally {
       setIsLoading(false);
     }

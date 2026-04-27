@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAsistente } from '../../context/AsistenteContext';
 import { asistenteProgramacion } from '../../services/api';
+import { getErrorMsg } from '../../utils/errorHelper';
 
 export const Step3Programacion = () => {
   const { proceso, updateProcesoFromDb, isLoading, setIsLoading, setError, clearError, goBack } = useAsistente();
@@ -77,7 +78,7 @@ export const Step3Programacion = () => {
         setError('Respuesta inválida del servidor.');
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Error desconocido');
+      setError(getErrorMsg(err));
     } finally {
       setIsLoading(false);
     }

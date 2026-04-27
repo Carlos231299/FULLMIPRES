@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAsistente } from '../../context/AsistenteContext';
 import { asistenteEntrega } from '../../services/api';
+import { getErrorMsg } from '../../utils/errorHelper';
 
 export const Step4Entrega = () => {
   const { proceso, updateProcesoFromDb, isLoading, setIsLoading, setError, clearError, goBack, setSuccess } = useAsistente();
@@ -17,13 +18,28 @@ export const Step4Entrega = () => {
   const [successMsg, setSuccessMsg] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    // Validación: Si es el número de identificación, solo permitir números
+    if (name === 'NoIDRecibe') {
+      const onlyNums = value.replace(/[^0-9]/g, '');
+      setFormData({ ...formData, [name]: onlyNums });
+      return;
+    }
+
+    setFormData({ ...formData, [name]: value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
     setSuccessMsg('');
+
+    // Validación preventiva de identificación
+    if (formData.CausaNoEntrega === '0' && (!formData.NoIDRecibe || formData.NoIDRecibe.length < 5)) {
+      setError('El número de identificación ingresado es demasiado corto o inválido.');
+      return;
+    }
 
     if (!proceso || !proceso.id_programacion) {
       setError('Falta el ID de Programación. Completa el paso anterior.');
@@ -47,7 +63,7 @@ export const Step4Entrega = () => {
         setError('Respuesta inválida del servidor.');
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Error desconocido');
+      setError(getErrorMsg(err));
     } finally {
       setIsLoading(false);
     }
