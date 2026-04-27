@@ -97,16 +97,11 @@ router.post('/procesar', upload.single('archivo'), async (req, res) => {
           });
           const p4Data = Array.isArray(resP4) ? resP4[0] : resP4;
           idEntrega = p4Data.IdEntrega || p4Data.ID;
-        } else {
-          // Ya existe entrega → buscar su programación asociada para el reporte
-          const programas = await MipresApi.getProgramacionXPrescripcion(nit, token, noPrescripcion);
-          const progExistente = Array.isArray(programas) && programas.find(p => Number(p.NoEntrega) === noEntrega);
-          idParaReporte = progExistente?.IdProgramacion || progExistente?.ID || entregaExistente?.IDDireccionamiento;
         }
 
         // 4. Ejecutar P5 Reporte (Siempre al final)
         const resP5 = await MipresApi.reporteEntrega(nit, token, {
-          ID: Number(idEntrega || idParaReporte),
+          ID: Number(dir.ID),
           CausaNoEntrega: 7
         });
         const p5Data = Array.isArray(resP5) ? resP5[0] : resP5;

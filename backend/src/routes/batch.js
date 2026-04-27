@@ -253,7 +253,7 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
         let idReporte = '';
         try {
           let payloadRep = {
-            ID: Number(idEntrega || idProgramacion || idDireccionamiento),
+            ID: Number(idDireccionamiento),
             EstadoEntrega: causaNoEntrega === 0 ? 1 : 0, 
             CausaNoEntrega: causaNoEntrega,
             ValorEntregado: Number(vrTotal) 
