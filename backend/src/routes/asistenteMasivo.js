@@ -58,47 +58,55 @@ router.post('/procesar', upload.single('archivo'), async (req, res) => {
         const entregas = await MipresApi.getEntregaXPrescripcion(nit, token, noPrescripcion);
         const entregaExistente = Array.isArray(entregas) && entregas.find(e => Number(e.NoEntrega) === noEntrega);
         
-        let idEntrega = entregaExistente?.ID || null;
-        let idMipres = entregaExistente?.IDDireccionamiento || null;
+        let idEntrega = entregaExistente?.IdEntrega || entregaExistente?.ID || null;
+        // ID que SISPRO necesita en P4 y P5: debe ser el IdProgramacion
+        let idParaReporte = null;
 
-        // 3. Si no hay entrega, verificar Programación (P3)
+        // 3. Si no hay entrega, verificar o crear Programación (P3)
         if (!idEntrega) {
           const programas = await MipresApi.getProgramacionXPrescripcion(nit, token, noPrescripcion);
           const progExistente = Array.isArray(programas) && programas.find(p => Number(p.NoEntrega) === noEntrega);
           
-          if (!progExistente) {
-             // Si no hay nada, necesitamos el direccionamiento para empezar
-             const dirs = await MipresApi.getDireccionamientoXPrescripcion(nit, token, noPrescripcion);
-             const dir = Array.isArray(dirs) && dirs[0]; // Simplificado para el masivo
-             if (!dir) throw new Error('No se encontró direccionamiento base');
+          if (progExistente) {
+            // Ya existe programación → usar su ID
+            idParaReporte = progExistente.IdProgramacion || progExistente.ID;
+          } else {
+            // No existe programación → crearla desde el Direccionamiento
+            const dirs = await MipresApi.getDireccionamientoXPrescripcion(nit, token, noPrescripcion);
+            const dir = Array.isArray(dirs) && dirs[0];
+            if (!dir) throw new Error('No se encontró direccionamiento base');
 
-             // Ejecutar P3 Programacion
-             const resP3 = await MipresApi.programacion(nit, token, {
-                ID: dir.ID,
-                FecMaxEnt: dir.FecMaxEnt,
-                TipoIDSedeProv: 'NI',
-                NoIDSedeProv: nit,
-                CodSedeProv: 'PROV008934',
-                CodSerTecAEntregar: dir.CodSerTecAEntregar,
-                CantTotAEntregar: String(dir.CantTotAEntregar)
-             });
-             const p3Data = Array.isArray(resP3) ? resP3[0] : resP3;
-             idMipres = dir.ID;
-             // Seguir al P4...
+            const resP3 = await MipresApi.programacion(nit, token, {
+               ID: dir.ID,
+               FecMaxEnt: dir.FecMaxEnt,
+               TipoIDSedeProv: 'NI',
+               NoIDSedeProv: nit,
+               CodSedeProv: 'PROV008934',
+               CodSerTecAEntregar: dir.CodSerTecAEntregar,
+               CantTotAEntregar: String(dir.CantTotAEntregar)
+            });
+            const p3Data = Array.isArray(resP3) ? resP3[0] : resP3;
+            // Priorizar el ID de programación retornado; si falla, usar el del direccionamiento
+            idParaReporte = p3Data?.IdProgramacion || p3Data?.ID || dir.ID;
           }
 
-          // Ejecutar P4 Entrega (Causa 7 por defecto para limpieza administrativa)
+          // Ejecutar P4 Entrega usando el idProgramacion
           const resP4 = await MipresApi.entrega(nit, token, {
-            ID: Number(idMipres),
+            ID: Number(idParaReporte),
             CausaNoEntrega: 7
           });
           const p4Data = Array.isArray(resP4) ? resP4[0] : resP4;
           idEntrega = p4Data.IdEntrega || p4Data.ID;
+        } else {
+          // Ya existe entrega → buscar su programación asociada para el reporte
+          const programas = await MipresApi.getProgramacionXPrescripcion(nit, token, noPrescripcion);
+          const progExistente = Array.isArray(programas) && programas.find(p => Number(p.NoEntrega) === noEntrega);
+          idParaReporte = progExistente?.IdProgramacion || progExistente?.ID || entregaExistente?.IDDireccionamiento;
         }
 
         // 4. Ejecutar P5 Reporte (Siempre al final)
         const resP5 = await MipresApi.reporteEntrega(nit, token, {
-          ID: Number(idMipres),
+          ID: Number(idParaReporte),
           CausaNoEntrega: 7
         });
         const p5Data = Array.isArray(resP5) ? resP5[0] : resP5;

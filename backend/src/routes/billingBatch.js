@@ -144,8 +144,9 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
               const idDir = dirSelect.ID || dirSelect.IdDireccionamiento;
 
               // 2. Programar (P3) - Solo si no estaba ya programado
+              let idProg = programFinal?.IdProgramacion || programFinal?.ID || null;
               if (!programFinal) {
-                await MipresApi.programacion(nit, token, {
+                const resP3 = await MipresApi.programacion(nit, token, {
                   ID: Number(idDir),
                   FecMaxEnt: String(dirSelect.FecMaxEnt || ''),
                   TipoIDSedeProv: 'NI',
@@ -154,12 +155,17 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
                   CodSerTecAEntregar: codTecFila,
                   CantTotAEntregar: String(dirSelect.CantTotAEntregar)
                 }).catch(() => null); // Ignorar si ya existía
+                const p3Data = Array.isArray(resP3) ? resP3[0] : resP3;
+                idProg = p3Data?.IdProgramacion || p3Data?.ID || idDir;
               }
+
+              // ID a usar en P4 y P5: preferir idProgramacion, fallback a idDir
+              const idParaEntrega = Number(idProg || idDir);
 
               // 3. Entregar (P4) - Con causa 0 (Efectiva) por defecto para facturar
               if (!deliveryFinal) {
                 await MipresApi.entrega(nit, token, {
-                  ID: Number(idDir),
+                  ID: idParaEntrega,
                   CodSerTecEntregado: codTecFila,
                   CantTotEntregada: Number(dirSelect.CantTotAEntregar),
                   EntTotal: 1,
@@ -172,7 +178,7 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
 
               // 4. Reportar (P5)
               const resP5 = await MipresApi.reporteEntrega(nit, token, {
-                ID: Number(idDir),
+                ID: idParaEntrega,
                 EstadoEntrega: 1,
                 CausaNoEntrega: 0,
                 ValorEntregado: 0 // Se actualizará con el valor de la factura si es necesario

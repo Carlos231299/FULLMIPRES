@@ -199,7 +199,7 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
         if (!idEntrega) {
           try {
             let payloadEntr = {
-              ID: Number(idDireccionamiento),
+              ID: Number(idProgramacion || idDireccionamiento),
               CodSerTecEntregado: codSerTec,
               CantTotEntregada: Number(cantidad || dirSelect.CantTotAEntregar || '0'),
               EntTotal: 1, 
@@ -253,7 +253,7 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
         let idReporte = '';
         try {
           let payloadRep = {
-            ID: Number(idDireccionamiento),
+            ID: Number(idProgramacion || idDireccionamiento),
             EstadoEntrega: causaNoEntrega === 0 ? 1 : 0, 
             CausaNoEntrega: causaNoEntrega,
             ValorEntregado: Number(vrTotal) 
