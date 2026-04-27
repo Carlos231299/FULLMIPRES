@@ -112,12 +112,18 @@ export async function upsertFromSispro({ nit, token, no_prescripcion, data }) {
   let idLocal;
 
   if (processIndex !== -1) {
-    // Actualizar proceso existente
+    // Actualizar proceso existente — siempre refrescar datos clave
     const p = db[processIndex];
+    p.no_prescripcion = no_prescripcion || p.no_prescripcion; // ← CRÍTICO para skip-step
+    p.token           = token           || p.token;
     p.id_programacion = idProg || p.id_programacion;
-    p.id_entrega = idEnt || p.id_entrega;
-    p.id_reporte = idRep || p.id_reporte;
-    p.estado = estado; 
+    p.id_entrega      = idEnt  || p.id_entrega;
+    p.id_reporte      = idRep  || p.id_reporte;
+    p.estado          = estado;
+    // Preservar datos del servicio técnico si SISPRO los devuelve
+    if (data.CodSerTecAEntregar) p.cod_ser_tec_a_entregar = data.CodSerTecAEntregar;
+    if (data.CantTotAEntregar)   p.cant_tot_a_entregar    = Number(data.CantTotAEntregar);
+    if (data.FecMaxEnt)          p.fec_max_ent            = data.FecMaxEnt;
     p.updated_at = new Date().toISOString();
     idLocal = p.id_local;
   } else {
