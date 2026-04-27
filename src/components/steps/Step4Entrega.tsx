@@ -4,7 +4,7 @@ import { asistenteEntrega, asistenteSkipStep } from '../../services/api';
 import { getErrorMsg } from '../../utils/errorHelper';
 
 export const Step4Entrega = () => {
-  const { proceso, updateProcesoFromDb, isLoading, setIsLoading, setError, clearError, goBack, setSuccess } = useAsistente();
+  const { proceso, updateProcesoFromDb, setCurrentStep, isLoading, setIsLoading, setError, clearError, goBack, setSuccess } = useAsistente();
 
   const [formData, setFormData] = useState({
     FecEntrega: new Date().toISOString().split('T')[0],

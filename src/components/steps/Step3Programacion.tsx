@@ -4,7 +4,7 @@ import { asistenteProgramacion, asistenteSkipStep } from '../../services/api';
 import { getErrorMsg } from '../../utils/errorHelper';
 
 export const Step3Programacion = () => {
-  const { proceso, updateProcesoFromDb, isLoading, setIsLoading, setError, clearError, goBack } = useAsistente();
+  const { proceso, updateProcesoFromDb, setCurrentStep, isLoading, setIsLoading, setError, clearError, goBack } = useAsistente();
 
   const [formData, setFormData] = useState({
     ID: proceso?.id_mipres || '',
