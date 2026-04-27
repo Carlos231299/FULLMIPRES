@@ -4,20 +4,15 @@ import { sisproGet, sisproPut, getProcesos } from '../services/api';
 import { DataGrid } from '../components/DataGrid';
 import { Modal } from '../components/Modal';
 import { useAsistente } from '../context/AsistenteContext';
-import { useNavigate } from 'react-router-dom';
 import { getErrorMsg } from '../utils/errorHelper';
-import { ConfirmDialog } from '../components/ConfirmDialog';
-import { syncAsistenteFromSispro } from '../services/api';
 
 export const DireccionamientoPage = () => {
   const { nit, token } = useAuth();
   const { 
-    updateProcesoFromDb, 
     setError, 
     setSuccess, 
     clearError
   } = useAsistente();
-  const navigate = useNavigate();
 
   const [noPrescripcion, setNoPrescripcion] = useState('');
   const [loading, setLoading] = useState(false);
