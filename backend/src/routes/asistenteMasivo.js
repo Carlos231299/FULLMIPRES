@@ -106,7 +106,7 @@ router.post('/procesar', upload.single('archivo'), async (req, res) => {
 
         // 4. Ejecutar P5 Reporte (Siempre al final)
         const resP5 = await MipresApi.reporteEntrega(nit, token, {
-          ID: Number(dir.ID),
+          ID: Number(idEntrega || idParaReporte),
           CausaNoEntrega: 7
         });
         const p5Data = Array.isArray(resP5) ? resP5[0] : resP5;
