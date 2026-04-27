@@ -73,6 +73,7 @@ export const Step3Programacion = () => {
         setSuccessMsg(`Programación exitosa. ID: ${response.data.proceso.id_programacion}`);
         setTimeout(() => {
           updateProcesoFromDb(response.data.proceso);
+          setCurrentStep(4); // Avanzar solo al 4
         }, 2000);
       } else {
         setError('Respuesta inválida del servidor.');
@@ -92,6 +93,7 @@ export const Step3Programacion = () => {
       const response = await asistenteSkipStep(proceso.id_local, 3);
       if (response.ok && response.data?.proceso) {
         updateProcesoFromDb(response.data.proceso);
+        setCurrentStep(4);
       } else {
         setError('No se pudo obtener la programación existente de SISPRO.');
       }

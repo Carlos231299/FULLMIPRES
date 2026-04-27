@@ -6,7 +6,7 @@ import { getErrorMsg } from '../../utils/errorHelper';
 
 // Ahora es el Paso 1 real del Asistente, aunque conserve el nombre.
 export const Step2Direccionamiento = () => {
-  const { proceso, setProceso, updateProcesoFromDb, isLoading, setIsLoading, setError, clearError, goBack } = useAsistente();
+  const { proceso, setProceso, updateProcesoFromDb, currentStep, setCurrentStep, isLoading, setIsLoading, setError, clearError, goBack } = useAsistente();
   const { nit, token } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -60,6 +60,7 @@ export const Step2Direccionamiento = () => {
         
         setTimeout(() => {
           updateProcesoFromDb(response.data.proceso);
+          setCurrentStep(3); // Avanzar solo al 3
         }, 2000);
       } else {
         setError('Respuesta inválida del servidor.');

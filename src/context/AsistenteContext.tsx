@@ -51,19 +51,11 @@ export const AsistenteProvider = ({ children }: { children: ReactNode }) => {
   const updateProcesoFromDb = (nuevoProceso: Proceso) => {
     try {
       setProceso(nuevoProceso);
-      let siguiente = 2; 
-      // Mapeo ultra-robusto basado en IDs presentes
-      if (nuevoProceso.id_mipres) siguiente = 3;
-      if (nuevoProceso.id_programacion) siguiente = 4;
-      if (nuevoProceso.id_entrega) siguiente = 5;
-      
-      // Si ya está reportado, se queda en el 5 para descargar el Excel
-      if (nuevoProceso.id_reporte || nuevoProceso.estado === 'REPORTADO') siguiente = 5;
-
-      setCurrentStep(siguiente);
+      // Ya no calculamos 'siguiente' ni llamamos a setCurrentStep automáticamente
+      // para que el usuario pueda pasar paso a paso manualmente.
     } catch (e) {
       console.error('Error al actualizar proceso:', e);
-      setError('Error interno al navegar entre pasos.');
+      setError('Error interno al actualizar datos.');
     }
   };
 

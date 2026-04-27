@@ -58,6 +58,7 @@ export const Step4Entrega = () => {
         setSuccess('Entrega guardada.');
         setTimeout(() => {
           updateProcesoFromDb(response.data.proceso);
+          setCurrentStep(5); // Avanzar solo al 5
         }, 2000);
       } else {
         setError('Respuesta inválida del servidor.');
@@ -77,6 +78,7 @@ export const Step4Entrega = () => {
       const response = await asistenteSkipStep(proceso.id_local, 4);
       if (response.ok && response.data?.proceso) {
         updateProcesoFromDb(response.data.proceso);
+        setCurrentStep(5); // Avanzar manualmente al 5
       } else {
         setError('No se pudo obtener la entrega existente de SISPRO.');
       }
