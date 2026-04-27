@@ -179,10 +179,9 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
                 idEntregaCiclo = p4Data?.IdEntrega || p4Data?.ID || idParaEntrega;
               }
 
-              // 4. Reportar (P5) — usa el id de la Entrega, no el de la Programación
-              const idParaReporte = Number(idEntregaCiclo || idParaEntrega);
+              // 4. Reportar (P5) — usar el id del Direccionamiento
               const resP5 = await MipresApi.reporteEntrega(nit, token, {
-                ID: idParaReporte,
+                ID: Number(idDir),
                 EstadoEntrega: 1,
                 CausaNoEntrega: 0,
                 ValorEntregado: 0
