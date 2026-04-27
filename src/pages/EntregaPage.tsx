@@ -74,29 +74,6 @@ export const EntregaPage = () => {
     }
   };
 
-  const handleJumpToAsistente = async (record: any) => {
-    if (!nit || !token || !noPrescripcion) return;
-    setLoading(true);
-    try {
-      const response = await syncAsistenteFromSispro({
-        nit: nit!,
-        token: token!,
-        no_prescripcion: noPrescripcion, // FIJO: antes decía no_prescripcion erróneamente
-        sisproRecord: record
-      });
-      
-      if (response.ok && response.data?.proceso) {
-        updateProcesoFromDb(response.data.proceso);
-        navigate('/asistente');
-      } else {
-        setError('No se pudo sincronizar el proceso con el Asistente.');
-      }
-    } catch (err: any) {
-      setError(getErrorMsg(err));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleCrear = async (e: React.FormEvent) => {
     e.preventDefault();

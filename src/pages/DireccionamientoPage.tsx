@@ -5,6 +5,7 @@ import { DataGrid } from '../components/DataGrid';
 import { Modal } from '../components/Modal';
 import { useAsistente } from '../context/AsistenteContext';
 import { getErrorMsg } from '../utils/errorHelper';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const DireccionamientoPage = () => {
   const { nit, token } = useAuth();
