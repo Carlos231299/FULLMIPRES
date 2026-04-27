@@ -95,11 +95,11 @@ export async function update(id, fields) {
 export async function upsertFromSispro({ nit, token, no_prescripcion, data }) {
   const db = await getDb();
   
-  // 1. Identificar IDs clave del registro de SISPRO
-  const idMipres = String(data.IdDireccionamiento || data.ID || '');
-  const idProg   = String(data.IdProgramacion || '');
-  const idEnt    = String(data.IdEntrega || '');
-  const idRep    = String(data.IdReporteEntrega || data.IdReporte || '');
+  // 1. Identificar IDs clave del registro de SISPRO (Robustez contra variaciones de etiquetas de SISPRO)
+  const idMipres = String(data.IdDireccionamiento || data.IDDireccionamiento || data.ID || '');
+  const idProg   = String(data.IdProgramacion || data.IDProgramacion || '');
+  const idEnt    = String(data.IdEntrega || data.IDEntrega || '');
+  const idRep    = String(data.IdReporteEntrega || data.IDReporteEntrega || data.IdReporte || data.IDReporte || '');
 
   // 2. Determinar estado lógico basado en los IDs presentes
   let estado = 'VERIFICADO'; // Por defecto si tiene IdDireccionamiento

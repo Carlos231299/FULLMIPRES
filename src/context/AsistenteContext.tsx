@@ -51,13 +51,14 @@ export const AsistenteProvider = ({ children }: { children: ReactNode }) => {
   const updateProcesoFromDb = (nuevoProceso: Proceso) => {
     try {
       setProceso(nuevoProceso);
-      // Mapeo manual para asegurar que saltamos al paso correcto
-      let siguiente = 2; // Por defecto empezamos en Direccionamiento
+      let siguiente = 2; 
+      // Mapeo ultra-robusto basado en IDs presentes
+      if (nuevoProceso.id_mipres) siguiente = 3;
+      if (nuevoProceso.id_programacion) siguiente = 4;
+      if (nuevoProceso.id_entrega) siguiente = 5;
       
-      if (nuevoProceso.estado === 'VERIFICADO') siguiente = 3;
-      if (nuevoProceso.estado === 'PROGRAMADO') siguiente = 4;
-      if (nuevoProceso.estado === 'ENTREGADO') siguiente = 5;
-      if (nuevoProceso.estado === 'REPORTADO') siguiente = 5;
+      // Si ya está reportado, se queda en el 5 para descargar el Excel
+      if (nuevoProceso.id_reporte || nuevoProceso.estado === 'REPORTADO') siguiente = 5;
 
       setCurrentStep(siguiente);
     } catch (e) {
