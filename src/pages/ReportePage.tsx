@@ -20,18 +20,6 @@ export const ReportePage = () => {
   } = useAsistente();
   const navigate = useNavigate();
 
-  const handleProcesarPrescripcion = async () => {
-    if (!noPrescripcion) return setError('Ingrese NoPrescripción');
-    setLoading(true);
-    try {
-      await startSyncProcess(noPrescripcion, null);
-      navigate('/asistente');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const [noPrescripcion, setNoPrescripcion] = useState('');
   const [loading, setLoading] = useState(false);
@@ -78,29 +66,6 @@ export const ReportePage = () => {
     }
   };
 
-  const handleJumpToAsistente = async (record: any) => {
-    if (!nit || !token || !noPrescripcion) return;
-    setLoading(true);
-    try {
-      const response = await syncAsistenteFromSispro({
-        nit: nit!,
-        token: token!,
-        no_prescripcion: noPrescripcion,
-        sisproRecord: record
-      });
-      
-      if (response.ok && response.data?.proceso) {
-        updateProcesoFromDb(response.data.proceso);
-        navigate('/asistente');
-      } else {
-        setError('No se pudo sincronizar el proceso con el Asistente.');
-      }
-    } catch (err: any) {
-      setError(getErrorMsg(err));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAnular = async () => {
     setLoading(true); clearError();
@@ -140,14 +105,6 @@ export const ReportePage = () => {
           />
           <button type="submit" disabled={loading} style={{ padding: '0.875rem 2rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
             {loading ? 'Consultando...' : 'Consultar SISPRO'}
-          </button>
-          <button 
-            type="button" 
-            disabled={loading || !noPrescripcion} 
-            onClick={handleProcesarPrescripcion} 
-            style={{ padding: '0.875rem 2rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
-          >
-             🚀 Procesar
           </button>
         </form>
       </div>
@@ -204,7 +161,6 @@ export const ReportePage = () => {
             <DataGrid 
               data={{ ...selectedResult, id_local: idLocalAsociado }} 
               title="Información del Reporte" 
-              onOpenInAsistente={handleJumpToAsistente} 
             />
             <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
               {!selectedResult.FecAnulacion && (

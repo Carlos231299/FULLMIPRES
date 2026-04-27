@@ -3,10 +3,9 @@ import { translateKey } from '../utils/mipresTranslate';
 interface DataGridProps {
   data: any;
   title?: string;
-  onOpenInAsistente?: (data: any) => void;
 }
 
-export const DataGrid = ({ data, title, onOpenInAsistente }: DataGridProps) => {
+export const DataGrid = ({ data, title }: DataGridProps) => {
   if (!data) return null;
 
   // Filtrar nulos si se prefiere, o mostrarlos como "N/A"
@@ -36,23 +35,6 @@ export const DataGrid = ({ data, title, onOpenInAsistente }: DataGridProps) => {
             <h3 style={{ margin: 0, color: '#1e293b', fontSize: '1.1rem' }}>
               {title}
             </h3>
-            {onOpenInAsistente && (
-              <button 
-                onClick={() => onOpenInAsistente(data)}
-                style={{
-                  padding: '0.4rem 0.8rem',
-                  background: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                🚀 Abrir en Asistente
-              </button>
-            )}
           </div>
           {(data.NoEntrega || data.Noentrega) && (
             <div style={{ 

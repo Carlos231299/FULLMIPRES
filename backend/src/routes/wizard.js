@@ -59,42 +59,68 @@ router.post('/:id/verificar-direccionamiento', async (req, res) => {
       console.warn('Sin reporte previo de entrega');
     }
 
-    // 2. Consultar todos los direccionamientos de la prescripcion
-    const allDirs = await MipresApi.getDireccionamientoXPrescripcion(proceso.nit, proceso.token, NoPrescripcion);
-    if (!allDirs || !Array.isArray(allDirs) || allDirs.length === 0) {
-      return res.status(404).json({ ok: false, error: 'No hay direccionamientos para esta prescripcion' });
+    // 2. CONSULTA PROFUNDA Y SINCRONIZACIÓN AUTOMÁTICA
+    // Intentamos encontrar el rastro más avanzado en SISPRO para posicionar al usuario
+    const [resDirs, resProgs, resEnts, resReps] = await Promise.all([
+      MipresApi.getDireccionamientoXPrescripcion(proceso.nit, proceso.token, NoPrescripcion).catch(() => []),
+      MipresApi.getProgramacionXPrescripcion(proceso.nit, proceso.token, NoPrescripcion).catch(() => []),
+      MipresApi.getEntregaXPrescripcion(proceso.nit, proceso.token, NoPrescripcion).catch(() => []),
+      MipresApi.getReporteEntregaXPrescripcion(proceso.nit, proceso.token, NoPrescripcion).catch(() => [])
+    ]);
+
+    const allDirs = Array.isArray(resDirs) ? resDirs : [];
+    if (allDirs.length === 0) {
+      return res.status(404).json({ ok: false, error: 'No se encontraron direccionamientos para esta prescripción en SISPRO.' });
     }
 
-    // 3. LOGICA OMITIR: Filtrar direccionamientos ya entregados Y los anulados (FecAnulacion != null)
-    const validDirs = allDirs.filter(dir => {
-      const yaEntregado = deliveredIds.includes(dir.ID || dir.IdDireccionamiento);
-      const estaAnulado = dir.FecAnulacion !== null && dir.FecAnulacion !== undefined && dir.FecAnulacion !== '';
-      return !yaEntregado && !estaAnulado;
-    });
-    if (validDirs.length === 0) {
-      return res.status(400).json({ ok: false, error: 'Todas las entregas para esta prescripcion ya fueron realizadas previamente' });
+    // Buscamos el direccionamiento más "avanzado"
+    // Prioridad: El que tenga reporte > el que tenga entrega > el que tenga programación > cualquiera disponible
+    let registroGanador = allDirs[0];
+    let encontrado = false;
+
+    // Función para buscar match en los arrays de SISPRO
+    const findMatch = (dirs, targetArray, idKey) => {
+      for (const d of dirs) {
+        const id = String(d.IdDireccionamiento || d.ID || '');
+        const match = targetArray.find(item => String(item.IdDireccionamiento || item.ID || item.IDDireccionamiento) === id);
+        if (match) return { dir: d, detail: match };
+      }
+      return null;
+    };
+
+    const matchRep = findMatch(allDirs, Array.isArray(resReps) ? resReps : [], 'IdReporteEntrega');
+    const matchEnt = findMatch(allDirs, Array.isArray(resEnts) ? resEnts : [], 'IdEntrega');
+    const matchProg = findMatch(allDirs, Array.isArray(resProgs) ? resProgs : [], 'IdProgramacion');
+
+    if (matchRep) {
+      registroGanador = { ...matchRep.dir, ...matchRep.detail };
+      encontrado = true;
+    } else if (matchEnt) {
+      registroGanador = { ...matchEnt.dir, ...matchEnt.detail };
+      encontrado = true;
+    } else if (matchProg) {
+      registroGanador = { ...matchProg.dir, ...matchProg.detail };
+      encontrado = true;
     }
 
-    // Tomamos el primer item valido para continuar
-    const dir = validDirs[0];
-
-    // 4. Actualizar Base de Datos con el direccionamiento filtrado
-    await Proceso.update(proceso.id_local, {
-      id_mipres: String(dir.ID || dir.Id || dir.IdDireccionamiento),
+    // 3. Sincronizar con la base de datos local
+    const procesoSincronizado = await Proceso.upsertFromSispro({
+      nit: proceso.nit,
+      token: proceso.token,
       no_prescripcion: NoPrescripcion,
-      cod_ser_tec_a_entregar: String(dir.CodSerTecAEntregar || ''),
-      cant_tot_a_entregar: Number(dir.CantTotAEntregar || 0),
-      fec_max_ent: String(dir.FecMaxEnt || ''), // Nueva automatización: Fecha oficial de SISPRO
-      disponibles: JSON.stringify(validDirs), // Nueva automatización: Todos los disponibles
-      estado: 'VERIFICADO',
+      data: registroGanador
     });
 
-    const actualizado = await Proceso.getById(proceso.id_local);
-    res.json({ ok: true, data: { proceso: actualizado, mipresResponse: dir, totalValidos: validDirs.length } });
+    // Guardamos también el listado de todos los direccionamientos disponibles por si el usuario quiere cambiar
+    await Proceso.update(procesoSincronizado.id_local, {
+      disponibles: JSON.stringify(allDirs)
+    });
+
+    const actualizado = await Proceso.getById(procesoSincronizado.id_local);
+    res.json({ ok: true, data: { proceso: actualizado, mipresResponse: registroGanador } });
   } catch (err) {
-    const status = err.response?.status || 500;
-    const message = err.response?.data || err.message;
-    res.status(status).json({ ok: false, error: message });
+    console.error('[Error en Sincronización Deep]', err);
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 

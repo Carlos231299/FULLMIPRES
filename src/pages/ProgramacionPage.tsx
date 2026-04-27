@@ -20,18 +20,6 @@ export const ProgramacionPage = () => {
   } = useAsistente();
   const navigate = useNavigate();
 
-  const handleProcesarPrescripcion = async () => {
-    if (!noPrescripcion) return setError('Ingrese NoPrescripción');
-    setLoading(true);
-    try {
-      await startSyncProcess(noPrescripcion, null);
-      navigate('/asistente');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const [noPrescripcion, setNoPrescripcion] = useState('');
   const [loading, setLoading] = useState(false);
@@ -85,29 +73,6 @@ export const ProgramacionPage = () => {
     }
   };
 
-  const handleJumpToAsistente = async (record: any) => {
-    if (!nit || !token || !noPrescripcion) return;
-    setLoading(true);
-    try {
-      const response = await syncAsistenteFromSispro({
-        nit: nit!,
-        token: token!,
-        no_prescripcion: noPrescripcion,
-        sisproRecord: record
-      });
-      
-      if (response.ok && response.data?.proceso) {
-        updateProcesoFromDb(response.data.proceso);
-        navigate('/asistente');
-      } else {
-        setError('No se pudo sincronizar el proceso con el Asistente.');
-      }
-    } catch (err: any) {
-      setError(getErrorMsg(err));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleCrear = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,14 +127,6 @@ export const ProgramacionPage = () => {
           <button type="submit" disabled={loading} style={{ padding: '0.875rem 2rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
             {loading ? 'Consultando...' : 'Consultar SISPRO'}
           </button>
-          <button 
-            type="button" 
-            disabled={loading || !noPrescripcion} 
-            onClick={handleProcesarPrescripcion} 
-            style={{ padding: '0.875rem 2rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
-          >
-             🚀 Procesar
-          </button>
         </form>
       </div>
 
@@ -202,13 +159,6 @@ export const ProgramacionPage = () => {
                       style={{ padding: '0.5rem 0.8rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontWeight: 500, fontSize: '0.85rem' }}
                     >
                       👁️ Detalle
-                    </button>
-                    <button 
-                      onClick={() => handleJumpToAsistente(res)}
-                      disabled={loading || !!res.FecAnulacion}
-                      style={{ padding: '0.5rem 0.8rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
-                    >
-                      🚀 Procesar
                     </button>
                   </td>
                 </tr>
@@ -250,7 +200,6 @@ export const ProgramacionPage = () => {
             <DataGrid 
               data={{ ...selectedResult, id_local: idLocalAsociado }} 
               title="Información de la Programación" 
-              onOpenInAsistente={handleJumpToAsistente} 
             />
             <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
               {!selectedResult.FecAnulacion && (

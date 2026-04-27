@@ -64,29 +64,6 @@ export const DireccionamientoPage = () => {
     }
   };
 
-  const handleJumpToAsistente = async (record: any) => {
-    if (!nit || !token || !noPrescripcion) return;
-    setLoading(true);
-    try {
-      const response = await syncAsistenteFromSispro({
-        nit: nit!,
-        token: token!,
-        no_prescripcion: noPrescripcion,
-        sisproRecord: record
-      });
-      
-      if (response.ok && response.data?.proceso) {
-        updateProcesoFromDb(response.data.proceso);
-        navigate('/asistente');
-      } else {
-        setError('No se pudo sincronizar el proceso con el Asistente.');
-      }
-    } catch (err: any) {
-      setError(getErrorMsg(err));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAnular = async () => {
     setLoading(true); clearError();
@@ -182,7 +159,6 @@ export const DireccionamientoPage = () => {
             <DataGrid 
               data={{ ...selectedResult, id_local: idLocalAsociado }} 
               title="Información del Direccionamiento" 
-              onOpenInAsistente={handleJumpToAsistente} 
             />
             <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
               {selectedResult.EstDireccionamiento !== 0 && (

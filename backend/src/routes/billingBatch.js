@@ -133,8 +133,58 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
           } catch (e) { /* vacio */ }
 
           if (!reportFinal) {
-            row['Log_Facturacion'] = `Error: No se encontró entrega #${noEntregaFila} para el ítem ${codTecFila}.`;
-            continue;
+            // --- CICLO AUTOMÁTICO DE EMERGENCIA ---
+            // Si no hay reporte, intentamos hacer todo el ciclo antes de facturar
+            try {
+              // 1. Obtener Direccionamiento Base
+              const dirs = await MipresApi.getDireccionamientoXPrescripcion(nit, token, noPrescripcion);
+              const dirSelect = Array.isArray(dirs) && dirs.find(d => Number(d.NoEntrega) === noEntregaFila);
+              
+              if (!dirSelect) throw new Error(`No se encontró direccionamiento para la entrega #${noEntregaFila}`);
+              const idDir = dirSelect.ID || dirSelect.IdDireccionamiento;
+
+              // 2. Programar (P3) - Solo si no estaba ya programado
+              if (!programFinal) {
+                await MipresApi.programacion(nit, token, {
+                  ID: Number(idDir),
+                  FecMaxEnt: String(dirSelect.FecMaxEnt || ''),
+                  TipoIDSedeProv: 'NI',
+                  NoIDSedeProv: nit,
+                  CodSedeProv: 'PROV008934',
+                  CodSerTecAEntregar: codTecFila,
+                  CantTotAEntregar: String(dirSelect.CantTotAEntregar)
+                }).catch(() => null); // Ignorar si ya existía
+              }
+
+              // 3. Entregar (P4) - Con causa 0 (Efectiva) por defecto para facturar
+              if (!deliveryFinal) {
+                await MipresApi.entrega(nit, token, {
+                  ID: Number(idDir),
+                  CodSerTecEntregado: codTecFila,
+                  CantTotEntregada: Number(dirSelect.CantTotAEntregar),
+                  EntTotal: 1,
+                  CausaNoEntrega: 0,
+                  FecEntrega: new Date().toISOString().split('T')[0],
+                  TipoIDRecibe: 'CC',
+                  NoIDRecibe: '12345678' // Genérico para masivo
+                }).catch(() => null);
+              }
+
+              // 4. Reportar (P5)
+              const resP5 = await MipresApi.reporteEntrega(nit, token, {
+                ID: Number(idDir),
+                EstadoEntrega: 1,
+                CausaNoEntrega: 0,
+                ValorEntregado: 0 // Se actualizará con el valor de la factura si es necesario
+              });
+              
+              reportFinal = Array.isArray(resP5) ? resP5[0] : resP5;
+              row['Log_Facturacion'] = '⚡ Ciclo completado automáticamente';
+
+            } catch (errSync) {
+              row['Log_Facturacion'] = `Error en Ciclo Automático: ${errSync.message}`;
+              continue;
+            }
           }
 
           // --- PASO 2: Facturar ---

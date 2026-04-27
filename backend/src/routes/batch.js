@@ -105,97 +105,79 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
           continue;
         }
 
-        // --- PASO 2: Verificar CÓDIGO TEC dentro de prescripción ---
-        let dirSelect = null;
-        let reportesPrevios = [];
-        try {
-          const reporte = await MipresApi.getReporteEntregaXPrescripcion(nit, token, noPrescripcion);
-          if (Array.isArray(reporte)) reportesPrevios = reporte;
-        } catch (e) { /* vacio o sin reporte previo */ }
+        // --- PASO 2: SINCRONIZACIÓN PROFUNDA (Deep Sync) ---
+        // Verificamos el rastro más avanzado en SISPRO para esta fila
+        const [resProgs, resEnts, resReps] = await Promise.all([
+          MipresApi.getProgramacionXPrescripcion(nit, token, noPrescripcion).catch(() => []),
+          MipresApi.getEntregaXPrescripcion(nit, token, noPrescripcion).catch(() => []),
+          MipresApi.getReporteEntregaXPrescripcion(nit, token, noPrescripcion).catch(() => [])
+        ]);
 
         const allDirs = await MipresApi.getDireccionamientoXPrescripcion(nit, token, noPrescripcion);
         if (!allDirs || !Array.isArray(allDirs) || allDirs.length === 0) {
-          const apiMsg = (typeof allDirs === 'string') ? `: ${allDirs}` : '';
-          row['Log_Sistema'] = `Error Paso 2: Prescripción sin direccionamientos${apiMsg}.`;
+          row['Log_Sistema'] = `Error: No se encontraron direccionamientos base en SISPRO.`;
           continue;
         }
 
-        // Buscar en los direccionamientos (ignorar los que estén anulados)
-        const exactDirs = allDirs.filter(d =>
+        // Buscar el direccionamiento exacto
+        const dirSelect = allDirs.find(d =>
           String(d.CodSerTecAEntregar).trim() === codSerTec &&
           Number(d.NoEntrega) === numEntrega &&
           (d.FecAnulacion === null || d.FecAnulacion === undefined || d.FecAnulacion === '')
         );
 
-        if (exactDirs.length === 0) {
-          row['Log_Sistema'] = `Error Paso 2: La entrega #${numEntrega} de la tecnología ${codSerTec} no existe en Mipres.`;
+        if (!dirSelect) {
+          row['Log_Sistema'] = `Error: La entrega #${numEntrega} del ítem ${codSerTec} no existe o está anulada.`;
           continue;
         }
 
-        dirSelect = exactDirs[0];
         const idDireccionamiento = dirSelect.ID || dirSelect.IdDireccionamiento;
-
-        // Comprobar si ESE direccionamiento exacto ya fue entregado y reportado por nosotros en la nube
-        const reporteExistente = reportesPrevios.find(r => (r.ID || r.IdEntrega || r.Id) === idDireccionamiento);
-        if (reporteExistente) {
-          const idRepFinal = String(reporteExistente.IDReporteEntrega || reporteExistente.IdReporteEntrega || reporteExistente.IdReporte || reporteExistente.Id || '');
-          const esNoEntregaPrevia = (reporteExistente.CausaNoEntrega && Number(reporteExistente.CausaNoEntrega) > 0);
-          
-          if (causaNoEntrega > 0 || esNoEntregaPrevia) {
-            row['Log_Sistema'] = `✅ MIPRES de No Entrega (Causa ${causaNoEntrega || reporteExistente.CausaNoEntrega}) ya reportado previamente.`;
-          } else {
-            row['Log_Sistema'] = `✅ MIPRES Entrega Efectiva ya reportado previamente (ID: ${idRepFinal}).`;
-          }
-
-          // Rellenar IDs históricos para trazabilidad
-          row['ID_Direccionamiento'] = idDireccionamiento;
-
-          // --- BÚSQUEDA PROFUNDA DE IDS HISTÓRICOS ---
-          // Buscamos específicamente en los servicios de historial por prescripción
-          try {
-            const historyProgs = await MipresApi.getProgramacionXPrescripcion(nit, token, noPrescripcion);
-            if (Array.isArray(historyProgs)) {
-              // Filtrar por el ID de direccionamiento específico
-              const exactProg = historyProgs.find(p => (p.ID || p.IdDireccionamiento) === idDireccionamiento);
-              if (exactProg) {
-                row['ID_Programacion'] = String(findInObj(exactProg, 'IDProgramacion') || '');
-              }
-            }
-          } catch (e) { /* Error silencioso en historial */ }
-
-          try {
-            const historyEnts = await MipresApi.getEntregaXPrescripcion(nit, token, noPrescripcion);
-            if (Array.isArray(historyEnts)) {
-              // Filtrar por el ID de direccionamiento específico
-              const exactEnt = historyEnts.find(e => (e.ID || e.IdDireccionamiento) === idDireccionamiento);
-              if (exactEnt) {
-                row['ID_Entrega'] = String(findInObj(exactEnt, 'IDEntrega') || '');
-              }
-            }
-          } catch (e) { /* Error silencioso en historial */ }
-
-          // Fallback final: si aún está vacío, intentar el mapeo básico anterior
-          if (!row['ID_Programacion']) {
-            row['ID_Programacion'] = String(findInObj(dirSelect, 'IDProgramacion') || findInObj(reporteExistente, 'IdProgramacion') || '');
-          }
-          if (!row['ID_Entrega']) {
-            row['ID_Entrega'] = String(findInObj(reporteExistente, 'IdEntrega') || '');
-          }
-
-          // Limpiar debugs ya que no hubo error al omitir
-          row['Problemas_encontrados_Programacion'] = '';
-          row['Problemas_encontrados_Entrega'] = '';
-
-          // Si el Excel traía una columna llamada IDReporteEntrega, la llenamos también
-          const keyColIdRep = findKey('IDREPORTEENTREGA');
-          if (keyColIdRep) row[keyColIdRep] = idRepFinal;
-
-          continue;
-        }
-
         row['ID_Direccionamiento'] = idDireccionamiento;
 
-        // Crear registro local en base de datos para historial (opcional pero ayuda a tracking)
+        // Buscar matches en los estados avanzados
+        const matchRep = Array.isArray(resReps) && resReps.find(r => String(r.IdDireccionamiento || r.ID || r.IDDireccionamiento) === String(idDireccionamiento));
+        const matchEnt = Array.isArray(resEnts) && resEnts.find(e => String(e.IdDireccionamiento || e.ID || e.IDDireccionamiento) === String(idDireccionamiento));
+        const matchProg = Array.isArray(resProgs) && resProgs.find(p => String(p.IdDireccionamiento || p.ID || p.IDDireccionamiento) === String(idDireccionamiento));
+
+        // Si ya está reportado, terminamos con éxito para esta fila
+        if (matchRep) {
+          row['ID_Programacion'] = String(matchProg?.IdProgramacion || matchProg?.ID || '');
+          row['ID_Entrega'] = String(matchEnt?.IdEntrega || matchEnt?.ID || '');
+          row['Log_Sistema'] = `✅ Ya estaba reportado (ID: ${matchRep.IDReporteEntrega || matchRep.ID})`;
+          continue;
+        }
+
+        // --- PASO 3: Programación (Saltar si ya existe) ---
+        let idProgramacion = matchProg?.IdProgramacion || matchProg?.ID || '';
+        if (!idProgramacion) {
+          try {
+            const payloadProg = {
+              ID: Number(idDireccionamiento),
+              FecMaxEnt: String(dirSelect.FecMaxEnt || ''),
+              TipoIDSedeProv: 'NI',
+              NoIDSedeProv: nit,
+              CodSedeProv: 'PROV008934',
+              CodSerTecAEntregar: codSerTec,
+              CantTotAEntregar: String(cantidad || dirSelect.CantTotAEntregar || '0')
+            };
+            const resProg = await MipresApi.programacion(nit, token, payloadProg);
+            const progData = Array.isArray(resProg) ? resProg[0] : resProg || {};
+            idProgramacion = String(progData.IdProgramacion || progData.Id || '');
+          } catch (errProg) {
+            const status = errProg.response?.status;
+            if (status === 422 || status === 400) {
+              row['Problemas_encontrados_Programacion'] = 'Detectado previo';
+            } else {
+              row['Log_Sistema'] = 'Error Programación: ' + errProg.message;
+              continue;
+            }
+          }
+        } else {
+           row['Problemas_encontrados_Programacion'] = 'Sincronizado de SISPRO';
+        }
+        row['ID_Programacion'] = idProgramacion;
+
+        // Crear registro local para historial si no existe
         const localId = await Proceso.create({ nit, token });
         row['ID_Local'] = localId;
         await Proceso.update(localId, {
@@ -204,81 +186,61 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
           cod_ser_tec_a_entregar: codSerTec,
           cant_tot_a_entregar: Number(cantidad || dirSelect.CantTotAEntregar),
           fec_max_ent: String(dirSelect.FecMaxEnt || ''),
-          causa_no_entrega: causaNoEntrega, // Registrar la causa en DB
+          causa_no_entrega: causaNoEntrega,
           estado: 'VERIFICADO',
         });
 
-        // --- PASO 3: Programación (Intentamos programar. Si 422, asumimos éxito previo) ---
-        let idProgramacion = '';
-        try {
-          const payloadProg = {
-            ID: Number(idDireccionamiento),
-            FecMaxEnt: String(dirSelect.FecMaxEnt || ''),
-            TipoIDSedeProv: 'NI',
-            NoIDSedeProv: nit,
-            CodSedeProv: 'PROV008934',
-            CodSerTecAEntregar: codSerTec,
-            CantTotAEntregar: String(cantidad || dirSelect.CantTotAEntregar || '0')
-          };
-          const resProg = await MipresApi.programacion(nit, token, payloadProg);
-          const progData = Array.isArray(resProg) ? resProg[0] : resProg || {};
-          idProgramacion = String(progData.IdProgramacion || progData.Id || '');
-        } catch (errProg) {
-          const status = errProg.response?.status;
-          if (status === 422 || status === 400) {
-            row['Problemas_encontrados_Programacion'] = 'Ignorado: ' + (errProg.response?.data?.Message || 'Ya programado o error config.');
-          } else {
-            row['Log_Sistema'] = 'Error Paso 3 Programación: ' + errProg.message;
-            continue; // Abortamos para este registro
-          }
-        }
-        if (idProgramacion) row['ID_Programacion'] = idProgramacion;
         await Proceso.update(localId, { id_programacion: idProgramacion, estado: 'PROGRAMADO' });
 
-        // --- PASO 4: Entrega ---
-        let idEntrega = '';
-        let entregaOk = false;
-        try {
-          let payloadEntr = {
-            ID: Number(idDireccionamiento),
-            CodSerTecEntregado: codSerTec,
-            CantTotEntregada: Number(cantidad || dirSelect.CantTotAEntregar || '0'),
-            EntTotal: 1, 
-            CausaNoEntrega: causaNoEntrega,
-            FecEntrega: fechaEntrega, 
-            NoLote: '',
-            TipoIDRecibe: 'CC', 
-            NoIDRecibe: ccRecibe
-          };
+        // --- PASO 4: Entrega (Saltar si ya existe) ---
+        let idEntrega = matchEnt?.IdEntrega || matchEnt?.ID || '';
+        let entregaOk = !!idEntrega;
 
-          // LIMPIEZA MASIVA PARA NO ENTREGA
-          if (causaNoEntrega !== 0) {
-            delete payloadEntr.CodSerTecEntregado;
-            delete payloadEntr.CantTotEntregada;
-            delete payloadEntr.EntTotal;
-            delete payloadEntr.NoLote;
-            delete payloadEntr.TipoIDRecibe;
-            delete payloadEntr.NoIDRecibe;
-          }
+        if (!idEntrega) {
+          try {
+            let payloadEntr = {
+              ID: Number(idDireccionamiento),
+              CodSerTecEntregado: codSerTec,
+              CantTotEntregada: Number(cantidad || dirSelect.CantTotAEntregar || '0'),
+              EntTotal: 1, 
+              CausaNoEntrega: causaNoEntrega,
+              FecEntrega: fechaEntrega, 
+              NoLote: '',
+              TipoIDRecibe: 'CC', 
+              NoIDRecibe: ccRecibe
+            };
 
-          const resEntr = await MipresApi.entrega(nit, token, payloadEntr);
-          const entrData = Array.isArray(resEntr) ? resEntr[0] : resEntr || {};
-          idEntrega = String(entrData.IdEntrega || entrData.Id || '');
-          entregaOk = true;
-        } catch (errEntr) {
-          const status = errEntr.response?.status;
-          if (status === 422 || status === 400) {
-            const msg = errEntr.response?.data?.Message || '';
-            row['Problemas_encontrados_Entrega'] = 'Ignorado: ' + (msg || 'Error validación');
-            // Si el error dice que "ya existe", podríamos considerarlo OK para pasar al reporte
-            if (msg.includes('ya existe') || msg.includes('ya fue')) {
-              entregaOk = true;
+            // LIMPIEZA MASIVA PARA NO ENTREGA
+            if (causaNoEntrega !== 0) {
+              delete payloadEntr.CodSerTecEntregado;
+              delete payloadEntr.CantTotEntregada;
+              delete payloadEntr.EntTotal;
+              delete payloadEntr.NoLote;
+              delete payloadEntr.TipoIDRecibe;
+              delete payloadEntr.NoIDRecibe;
             }
-          } else {
-            row['Log_Sistema'] = 'Error Paso 4 Entrega: ' + errEntr.message;
-            continue;
+
+            const resEntr = await MipresApi.entrega(nit, token, payloadEntr);
+            const entrData = Array.isArray(resEntr) ? resEntr[0] : resEntr || {};
+            idEntrega = String(entrData.IdEntrega || entrData.Id || '');
+            entregaOk = true;
+          } catch (errEntr) {
+            const status = errEntr.response?.status;
+            if (status === 422 || status === 400) {
+              const msg = errEntr.response?.data?.Message || '';
+              row['Problemas_encontrados_Entrega'] = 'Detectado previo';
+              if (msg.includes('ya existe') || msg.includes('ya fue')) {
+                entregaOk = true;
+              }
+            } else {
+              row['Log_Sistema'] = 'Error Entrega: ' + errEntr.message;
+              // No hacemos continue aquí, intentaremos reporte si entregaOk es true
+            }
           }
+        } else {
+           row['Problemas_encontrados_Entrega'] = 'Sincronizado de SISPRO';
         }
+
         if (idEntrega) row['ID_Entrega'] = idEntrega;
         await Proceso.update(localId, { id_entrega: idEntrega, estado: 'ENTREGADO' });
 

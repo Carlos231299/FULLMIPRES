@@ -20,18 +20,6 @@ export const EntregaPage = () => {
   } = useAsistente();
   const navigate = useNavigate();
 
-  const handleProcesarPrescripcion = async () => {
-    if (!noPrescripcion) return setError('Ingrese NoPrescripción');
-    setLoading(true);
-    try {
-      await startSyncProcess(noPrescripcion, null);
-      navigate('/asistente');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const [noPrescripcion, setNoPrescripcion] = useState('');
   const [loading, setLoading] = useState(false);
@@ -180,14 +168,6 @@ export const EntregaPage = () => {
           <button type="submit" disabled={loading} style={{ padding: '0.875rem 2rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
             {loading ? 'Consultando...' : 'Consultar SISPRO'}
           </button>
-          <button 
-            type="button" 
-            disabled={loading || !noPrescripcion} 
-            onClick={handleProcesarPrescripcion} 
-            style={{ padding: '0.875rem 2rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
-          >
-             🚀 Procesar
-          </button>
         </form>
       </div>
 
@@ -258,7 +238,7 @@ export const EntregaPage = () => {
       >
         {selectedResult && (
           <>
-            <DataGrid data={{ ...selectedResult, id_local: idLocalAsociado }} title="Información de la Entrega" onOpenInAsistente={idLocalAsociado ? handleJumpToAsistente : undefined} />
+            <DataGrid data={{ ...selectedResult, id_local: idLocalAsociado }} title="Información de la Entrega" />
             <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
               {!selectedResult.FecAnulacion && (
                 <button 
