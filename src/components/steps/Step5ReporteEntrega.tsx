@@ -79,6 +79,7 @@ export const Step5ReporteEntrega = () => {
           ValorEntregado: ''
         }
         : {
+          ID: Number(currentProceso.id_mipres),
           EstadoEntrega: Number(formData.EstadoEntrega),
           CausaNoEntrega: formData.EstadoEntrega === '1' ? 0 : Number(formData.CausaNoEntrega),
           ValorEntregado: Number(formData.ValorEntregado)

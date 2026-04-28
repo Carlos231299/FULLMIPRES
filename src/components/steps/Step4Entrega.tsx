@@ -50,7 +50,7 @@ export const Step4Entrega = () => {
     try {
       const response = await asistenteEntrega(proceso.id_local, {
         ...formData,
-        ID: Number(proceso.id_programacion)
+        ID: Number(proceso.id_mipres)
       });
 
       if (response.ok && response.data?.proceso) {
@@ -99,7 +99,7 @@ export const Step4Entrega = () => {
       </div>
 
       <div className="alert" style={{ backgroundColor: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-        <p style={{ margin: '0 0 0.5rem 0' }}>📌 <strong>ID Programación a referenciar:</strong> {proceso?.id_programacion || 'Ninguno'}</p>
+        <p style={{ margin: '0 0 0.5rem 0' }}>📌 <strong>ID Direccionamiento a referenciar:</strong> {proceso?.id_mipres || 'Ninguno'}</p>
         <p style={{ margin: 0 }}>Recuerda verificar bien las cantidades antes de confirmar.</p>
       </div>
 

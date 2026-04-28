@@ -90,9 +90,9 @@ router.post('/procesar', upload.single('archivo'), async (req, res) => {
             idParaReporte = p3Data?.IdProgramacion || p3Data?.ID || dir.ID;
           }
 
-          // Ejecutar P4 Entrega usando el idProgramacion
+          // Ejecutar P4 Entrega usando el id del Direccionamiento
           const resP4 = await MipresApi.entrega(nit, token, {
-            ID: Number(idParaReporte),
+            ID: Number(dir.ID),
             CausaNoEntrega: 7
           });
           const p4Data = Array.isArray(resP4) ? resP4[0] : resP4;
@@ -101,7 +101,7 @@ router.post('/procesar', upload.single('archivo'), async (req, res) => {
 
         // 4. Ejecutar P5 Reporte (Siempre al final)
         const resP5 = await MipresApi.reporteEntrega(nit, token, {
-          ID: Number(idEntrega || idParaReporte),
+          ID: Number(dir.ID),
           CausaNoEntrega: 7
         });
         const p5Data = Array.isArray(resP5) ? resP5[0] : resP5;
