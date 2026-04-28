@@ -48,10 +48,7 @@ export const Step4Entrega = () => {
 
     setIsLoading(true);
     try {
-      const response = await asistenteEntrega(proceso.id_local, {
-        ...formData,
-        ID: Number(proceso.id_mipres)
-      });
+      const response = await asistenteEntrega(proceso.id_local, formData);
 
       if (response.ok && response.data?.proceso) {
         setSuccessMsg(`Entrega registrada con éxito. ID: ${response.data.proceso.id_entrega}`);
