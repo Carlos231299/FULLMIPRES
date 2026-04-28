@@ -72,7 +72,7 @@ export async function update(id, fields) {
     'id_mipres', 'id_programacion', 'id_entrega', 'id_reporte',
     'estado', 'token', 'nit', 'no_prescripcion',
     'cod_ser_tec_a_entregar', 'cant_tot_a_entregar',
-    'fec_max_ent', 'disponibles'
+    'fec_max_ent', 'disponibles', 'log'
   ];
 
   let updated = false;

@@ -76,7 +76,12 @@ router.post('/:id/verificar-direccionamiento', async (req, res) => {
     res.json({ ok: true, data: { proceso: actualizado, mipresResponse: dirSelect } });
   } catch (err) {
     console.error('[Error en Verificacion Direccionamiento]', err);
-    res.status(500).json({ ok: false, error: err.message });
+    const status = err.response?.status || 500;
+    res.status(status).json({
+      ok: false,
+      error: err.response?.data?.Message || err.message,
+      axiosData: err.response?.data
+    });
   }
 });
 
@@ -132,7 +137,12 @@ router.post('/:id/skip-step', async (req, res) => {
     res.json({ ok: true, data: { proceso: actualizado } });
   } catch (err) {
     console.error('[Error en Skip Step]', err);
-    res.status(500).json({ ok: false, error: err.message });
+    const status = err.response?.status || 500;
+    res.status(status).json({
+      ok: false,
+      error: err.response?.data?.Message || err.message,
+      axiosData: err.response?.data
+    });
   }
 });
 
@@ -179,8 +189,13 @@ router.put('/:id/programacion', async (req, res) => {
     const actualizado = await Proceso.getById(proceso.id_local);
     res.json({ ok: true, data: { proceso: actualizado, mipresResponse: result } });
   } catch (err) {
+    console.error('[Error en Programacion]', err);
     const status = err.response?.status || 500;
-    res.status(status).json({ ok: false, error: err.message });
+    res.status(status).json({
+      ok: false,
+      error: err.response?.data?.Message || err.message,
+      axiosData: err.response?.data
+    });
   }
 });
 
@@ -311,9 +326,13 @@ router.put('/:id/reporte', async (req, res) => {
     const actualizado = await Proceso.getById(proceso.id_local);
     res.json({ ok: true, data: { proceso: actualizado, mipresResponse: result } });
   } catch (err) {
+    console.error('[Error en Reporte]', err);
     const status = err.response?.status || 500;
-    const msg = err.response?.data || err.message;
-    res.status(status).json({ ok: false, error: msg });
+    res.status(status).json({
+      ok: false,
+      error: err.response?.data?.Message || err.message,
+      axiosData: err.response?.data
+    });
   }
 });
 
