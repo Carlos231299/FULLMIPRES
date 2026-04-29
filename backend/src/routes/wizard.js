@@ -230,7 +230,7 @@ router.put('/:id/entrega', async (req, res) => {
     }
 
     let payload = {
-      ID: Number(req.body.ID || proceso.id_programacion || proceso.id_mipres),
+      ID: Number(req.body.ID || proceso.id_mipres),
       CodSerTecEntregado: String(req.body.CodSerTecEntregado || proceso.cod_ser_tec_a_entregar || ''),
       CantTotEntregada: String(req.body.CantTotEntregada || proceso.cant_tot_a_entregar || '0'),
       EntTotal: Number(req.body.EntTotal || 1),
@@ -302,7 +302,7 @@ router.put('/:id/reporte', async (req, res) => {
     }
 
     let payload = {
-      ID: Number(req.body.ID || proceso.id_entrega || proceso.id_programacion || proceso.id_mipres),
+      ID: Number(req.body.ID || proceso.id_mipres),
       EstadoEntrega: Number(req.body.EstadoEntrega ?? 1),
       CausaNoEntrega: Number(req.body.EstadoEntrega) === 1 ? 0 : Number(req.body.CausaNoEntrega || 0),
       ValorEntregado: String(req.body.ValorEntregado || '0')
