@@ -131,7 +131,7 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
           continue;
         }
 
-        const idDireccionamiento = dirSelect.ID || dirSelect.IdDireccionamiento;
+        const idDireccionamiento = dirSelect.IdDireccionamiento || dirSelect.ID;
         row['ID_Direccionamiento'] = idDireccionamiento;
 
         // Buscar matches en los estados avanzados (Priorizando IDs específicos de cada paso)
