@@ -131,13 +131,27 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
           continue;
         }
 
-        const idDireccionamiento = dirSelect.IDDireccionamiento || dirSelect.IdDireccionamiento || dirSelect.IDDIRECCIONAMIENTO || dirSelect.ID;
-        row['ID_Direccionamiento'] = idDireccionamiento;
+        const idDireccionamiento = String(dirSelect.IDDireccionamiento || dirSelect.IdDireccionamiento || dirSelect.IDDIRECCIONAMIENTO || '');
+        const idRegistro = String(dirSelect.ID || dirSelect.Id || '');
+        
+        // El ID principal para las operaciones será el de direccionamiento, 
+        // pero si no existe (raro), usamos el de registro.
+        const idPrincipal = idDireccionamiento || idRegistro;
+        row['ID_Direccionamiento'] = idPrincipal;
 
-        // Buscar matches en los estados avanzados (Priorizando IDs específicos de cada paso)
-        const matchRep = Array.isArray(resReps) && resReps.find(r => String(r.IdDireccionamiento || r.ID || r.IDDireccionamiento) === String(idDireccionamiento));
-        const matchEnt = Array.isArray(resEnts) && resEnts.find(e => String(e.IdDireccionamiento || e.ID || e.IDDireccionamiento) === String(idDireccionamiento));
-        const matchProg = Array.isArray(resProgs) && resProgs.find(p => String(p.IdDireccionamiento || p.ID || p.IDDireccionamiento) === String(idDireccionamiento));
+        // Buscar matches en los estados avanzados (Validación doble: por IdDireccionamiento o por ID de registro)
+        const matchRep = Array.isArray(resReps) && resReps.find(r => 
+          String(r.IdDireccionamiento || r.IDDireccionamiento || '') === idDireccionamiento || 
+          String(r.ID || r.Id || '') === idRegistro
+        );
+        const matchEnt = Array.isArray(resEnts) && resEnts.find(e => 
+          String(e.IdDireccionamiento || e.IDDireccionamiento || '') === idDireccionamiento || 
+          String(e.ID || e.Id || '') === idRegistro
+        );
+        const matchProg = Array.isArray(resProgs) && resProgs.find(p => 
+          String(p.IdDireccionamiento || p.IDDireccionamiento || '') === idDireccionamiento || 
+          String(p.ID || p.Id || '') === idRegistro
+        );
 
         // Si ya está reportado, terminamos con éxito para esta fila
         if (matchRep) {
