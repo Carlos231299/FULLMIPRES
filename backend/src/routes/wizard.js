@@ -31,8 +31,9 @@ router.post('/token', async (req, res) => {
     res.status(201).json({ ok: true, data: { proceso, tokenRaw: tokenData } });
   } catch (err) {
     const status = err.response?.status || 500;
-    const message = err.response?.data || err.message;
-    res.status(status).json({ ok: false, error: message });
+    const apiErrors = err.response?.data?.Errors;
+    const errorDetail = Array.isArray(apiErrors) ? apiErrors.join(' | ') : (err.response?.data?.Message || err.message);
+    res.status(status).json({ ok: false, error: errorDetail });
   }
 });
 
@@ -77,9 +78,11 @@ router.post('/:id/verificar-direccionamiento', async (req, res) => {
   } catch (err) {
     console.error('[Error en Verificacion Direccionamiento]', err);
     const status = err.response?.status || 500;
+    const apiErrors = err.response?.data?.Errors;
+    const errorDetail = Array.isArray(apiErrors) ? apiErrors.join(' | ') : (err.response?.data?.Message || err.message);
     res.status(status).json({
       ok: false,
-      error: err.response?.data?.Message || err.message,
+      error: errorDetail,
       axiosData: err.response?.data
     });
   }
@@ -138,9 +141,11 @@ router.post('/:id/skip-step', async (req, res) => {
   } catch (err) {
     console.error('[Error en Skip Step]', err);
     const status = err.response?.status || 500;
+    const apiErrors = err.response?.data?.Errors;
+    const errorDetail = Array.isArray(apiErrors) ? apiErrors.join(' | ') : (err.response?.data?.Message || err.message);
     res.status(status).json({
       ok: false,
-      error: err.response?.data?.Message || err.message,
+      error: errorDetail,
       axiosData: err.response?.data
     });
   }
@@ -191,9 +196,11 @@ router.put('/:id/programacion', async (req, res) => {
   } catch (err) {
     console.error('[Error en Programacion]', err);
     const status = err.response?.status || 500;
+    const apiErrors = err.response?.data?.Errors;
+    const errorDetail = Array.isArray(apiErrors) ? apiErrors.join(' | ') : (err.response?.data?.Message || err.message);
     res.status(status).json({
       ok: false,
-      error: err.response?.data?.Message || err.message,
+      error: errorDetail,
       axiosData: err.response?.data
     });
   }
@@ -266,8 +273,13 @@ router.put('/:id/entrega', async (req, res) => {
   } catch (err) {
     console.error('[Error en Entrega]', err);
     const status = err.response?.status || 500;
-    const msg = err.response?.data || err.message;
-    res.status(status).json({ ok: false, error: msg, stack: err.stack, axiosData: err.response?.data });
+    const apiErrors = err.response?.data?.Errors;
+    const errorDetail = Array.isArray(apiErrors) ? apiErrors.join(' | ') : (err.response?.data?.Message || err.message);
+    res.status(status).json({
+      ok: false,
+      error: errorDetail,
+      axiosData: err.response?.data
+    });
   }
 });
 
@@ -328,9 +340,11 @@ router.put('/:id/reporte', async (req, res) => {
   } catch (err) {
     console.error('[Error en Reporte]', err);
     const status = err.response?.status || 500;
+    const apiErrors = err.response?.data?.Errors;
+    const errorDetail = Array.isArray(apiErrors) ? apiErrors.join(' | ') : (err.response?.data?.Message || err.message);
     res.status(status).json({
       ok: false,
-      error: err.response?.data?.Message || err.message,
+      error: errorDetail,
       axiosData: err.response?.data
     });
   }
