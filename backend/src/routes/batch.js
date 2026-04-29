@@ -134,16 +134,18 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
         const idDireccionamiento = dirSelect.ID || dirSelect.IdDireccionamiento;
         row['ID_Direccionamiento'] = idDireccionamiento;
 
-        // Buscar matches en los estados avanzados
+        // Buscar matches en los estados avanzados (Priorizando IDs específicos de cada paso)
         const matchRep = Array.isArray(resReps) && resReps.find(r => String(r.IdDireccionamiento || r.ID || r.IDDireccionamiento) === String(idDireccionamiento));
         const matchEnt = Array.isArray(resEnts) && resEnts.find(e => String(e.IdDireccionamiento || e.ID || e.IDDireccionamiento) === String(idDireccionamiento));
         const matchProg = Array.isArray(resProgs) && resProgs.find(p => String(p.IdDireccionamiento || p.ID || p.IDDireccionamiento) === String(idDireccionamiento));
 
         // Si ya está reportado, terminamos con éxito para esta fila
         if (matchRep) {
-          row['ID_Programacion'] = String(matchProg?.IdProgramacion || matchProg?.ID || '');
-          row['ID_Entrega'] = String(matchEnt?.IdEntrega || matchEnt?.ID || '');
-          row['Log_Sistema'] = `✅ Ya estaba reportado (ID: ${matchRep.IDReporteEntrega || matchRep.ID})`;
+          row['ID_Programacion'] = String(matchProg?.IdProgramacion || matchProg?.IDProgramacion || matchProg?.ID || '');
+          row['ID_Entrega'] = String(matchEnt?.IdEntrega || matchEnt?.IDEntrega || matchEnt?.ID || '');
+          const realIdRep = String(matchRep.IdReporteEntrega || matchRep.IDReporteEntrega || matchRep.IdReporte || matchRep.ID || '');
+          row['ID_Reporte'] = realIdRep;
+          row['Log_Sistema'] = `✅ Ya estaba reportado (ID: ${realIdRep})`;
           continue;
         }
 
@@ -167,8 +169,14 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
             const status = errProg.response?.status;
             if (status === 422 || status === 400) {
               row['Problemas_encontrados_Programacion'] = 'Detectado previo';
+              // Intentar recuperar el ID real de la programación si ya existía
+              try {
+                const checkProgs = await MipresApi.getProgramacionXPrescripcion(nit, token, noPrescripcion);
+                const pMatch = Array.isArray(checkProgs) && checkProgs.find(p => String(p.IdDireccionamiento || p.IDDireccionamiento) === String(idDireccionamiento));
+                if (pMatch) idProgramacion = String(pMatch.IdProgramacion || pMatch.IDProgramacion || pMatch.ID || '');
+              } catch (e) { /* ignore */ }
             } else {
-              row['Log_Sistema'] = 'Error Programación: ' + errProg.message;
+              row['Log_Sistema'] = 'Error Programación: ' + (errProg.response?.data?.Message || errProg.message);
               continue;
             }
           }
@@ -229,12 +237,18 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
             if (status === 422 || status === 400) {
               const msg = errEntr.response?.data?.Message || '';
               row['Problemas_encontrados_Entrega'] = 'Detectado previo';
+              // Recuperar ID real de la entrega
+              try {
+                const checkEnts = await MipresApi.getEntregaXPrescripcion(nit, token, noPrescripcion);
+                const eMatch = Array.isArray(checkEnts) && checkEnts.find(e => String(e.IdDireccionamiento || e.IDDireccionamiento) === String(idDireccionamiento));
+                if (eMatch) idEntrega = String(eMatch.IdEntrega || eMatch.IDEntrega || eMatch.ID || '');
+              } catch (e) { /* ignore */ }
+              
               if (msg.includes('ya existe') || msg.includes('ya fue')) {
                 entregaOk = true;
               }
             } else {
-              row['Log_Sistema'] = 'Error Entrega: ' + errEntr.message;
-              // No hacemos continue aquí, intentaremos reporte si entregaOk es true
+              row['Log_Sistema'] = 'Error Entrega: ' + (errEntr.response?.data?.Message || errEntr.message);
             }
           }
         } else {
@@ -277,6 +291,7 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
           row['Log_Sistema'] = 'Error Paso 5 Reporte: ' + (errRep.response?.data?.Message || errRep.message);
         }
         if (idReporte) {
+          row['ID_Reporte'] = idReporte;
           // Si el Excel traía una columna llamada IDReporteEntrega, la llenamos también
           const keyColIdRep = findKey('IDREPORTEENTREGA');
           if (keyColIdRep) row[keyColIdRep] = idReporte;
