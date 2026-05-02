@@ -134,10 +134,9 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
         const idDireccionamiento = String(dirSelect.IDDireccionamiento || dirSelect.IdDireccionamiento || dirSelect.IDDIRECCIONAMIENTO || '');
         const idRegistro = String(dirSelect.ID || dirSelect.Id || '');
         
-        // El ID principal para las operaciones será el de direccionamiento, 
-        // pero si no existe (raro), usamos el de registro.
-        const idPrincipal = idDireccionamiento || idRegistro;
-        row['ID_Direccionamiento'] = idPrincipal;
+        // El ID principal para MOSTRAR será el de direccionamiento, 
+        // pero para OPERAR con SISPRO debemos usar el de registro.
+        row['ID_Direccionamiento'] = idDireccionamiento || idRegistro;
 
         // Buscar matches en los estados avanzados (Validación doble: por IdDireccionamiento o por ID de registro)
         const matchRep = Array.isArray(resReps) && resReps.find(r => 
@@ -168,7 +167,7 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
         if (!idProgramacion) {
           try {
             const payloadProg = {
-              ID: Number(idDireccionamiento),
+              ID: Number(idRegistro),
               FecMaxEnt: String(dirSelect.FecMaxEnt || ''),
               TipoIDSedeProv: 'NI',
               NoIDSedeProv: nit,
@@ -221,7 +220,7 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
         if (!idEntrega) {
           try {
             let payloadEntr = {
-              ID: Number(idDireccionamiento),
+              ID: Number(idRegistro),
               CodSerTecEntregado: codSerTec,
               CantTotEntregada: Number(cantidad || dirSelect.CantTotAEntregar || '0'),
               EntTotal: 1, 
@@ -281,7 +280,7 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
         let idReporte = '';
         try {
           let payloadRep = {
-            ID: Number(idDireccionamiento),
+            ID: Number(idRegistro),
             EstadoEntrega: causaNoEntrega === 0 ? 1 : 0, 
             CausaNoEntrega: causaNoEntrega,
             ValorEntregado: Number(vrTotal) 

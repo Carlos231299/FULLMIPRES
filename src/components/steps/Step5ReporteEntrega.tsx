@@ -177,7 +177,7 @@ export const Step5ReporteEntrega = () => {
           </p>
           <div style={{ marginTop: '1.5rem', padding: '1.5rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '0.9rem', textAlign: 'left', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
             <p style={{ margin: 0 }}><strong>ID Local:</strong> <span style={{ color: '#2563eb' }}>#{proceso.id_local}</span></p>
-            <p style={{ margin: 0 }}><strong>ID Direccionamiento:</strong> {proceso.id_mipres}</p>
+            <p style={{ margin: 0 }}><strong>ID Direccionamiento:</strong> {proceso.id_direccionamiento || proceso.id_mipres}</p>
             <p style={{ margin: 0 }}><strong>Modalidad:</strong> {isNoEntrega ? 'No Entrega (Causa 7)' : 'Entrega Efectiva'}</p>
             <p style={{ margin: 0 }}><strong>ID Reporte Final:</strong> {proceso.id_reporte}</p>
           </div>

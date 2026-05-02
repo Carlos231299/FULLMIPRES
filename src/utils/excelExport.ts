@@ -12,7 +12,7 @@ export const exportProcessToExcel = async (proceso: any): Promise<string> => {
       'Tecnología': proceso.cod_ser_tec_a_entregar,
       'Cantidad': proceso.cant_tot_a_entregar,
       'Fec_Max_Ent': proceso.fec_max_ent,
-      'ID_Direccionamiento': proceso.id_mipres,
+      'ID_Direccionamiento': proceso.id_direccionamiento || proceso.id_mipres,
       'ID_Programacion': proceso.id_programacion,
       'ID_Entrega': proceso.id_entrega,
       'ID_Reporte': proceso.id_reporte,

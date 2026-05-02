@@ -56,7 +56,7 @@ export const Step2Direccionamiento = () => {
       });
 
       if (response.ok && response.data?.proceso) {
-        setSuccessMsg(`¡Verificado con éxito! ID extraído: ${response.data.proceso.id_mipres}`);
+        setSuccessMsg(`¡Verificado con éxito! ID extraído: ${response.data.proceso.id_direccionamiento || response.data.proceso.id_mipres}`);
         
         setTimeout(() => {
           updateProcesoFromDb(response.data.proceso);

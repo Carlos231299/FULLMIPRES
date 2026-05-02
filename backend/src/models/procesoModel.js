@@ -95,8 +95,9 @@ export async function update(id, fields) {
 export async function upsertFromSispro({ nit, token, no_prescripcion, data }) {
   const db = await getDb();
   
-  // 1. Identificar IDs clave del registro de SISPRO (Robustez contra variaciones de etiquetas de SISPRO)
-  const idMipres = String(data.IdDireccionamiento || data.IDDireccionamiento || data.ID || '');
+  // 1. Identificar IDs clave del registro de SISPRO
+  const idMipres = String(data.ID || data.Id || '');
+  const idDireccionamiento = String(data.IdDireccionamiento || data.IDDireccionamiento || data.IDDIRECCIONAMIENTO || '');
   const idProg   = String(data.IdProgramacion || data.IDProgramacion || '');
   const idEnt    = String(data.IdEntrega || data.IDEntrega || '');
   const idRep    = String(data.IdReporteEntrega || data.IDReporteEntrega || data.IdReporte || data.IDReporte || '');
@@ -116,6 +117,8 @@ export async function upsertFromSispro({ nit, token, no_prescripcion, data }) {
     const p = db[processIndex];
     p.no_prescripcion = no_prescripcion || p.no_prescripcion; // ← CRÍTICO para skip-step
     p.token           = token           || p.token;
+    p.id_mipres = idMipres;
+    p.id_direccionamiento = idDireccionamiento;
     p.id_programacion = idProg || p.id_programacion;
     p.id_entrega      = idEnt  || p.id_entrega;
     p.id_reporte      = idRep  || p.id_reporte;
@@ -135,6 +138,7 @@ export async function upsertFromSispro({ nit, token, no_prescripcion, data }) {
       token,
       no_prescripcion,
       id_mipres: idMipres,
+      id_direccionamiento: idDireccionamiento,
       id_programacion: idProg || null,
       id_entrega: idEnt || null,
       id_reporte: idRep || null,
