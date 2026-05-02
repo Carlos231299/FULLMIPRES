@@ -3,6 +3,7 @@
 export interface Proceso {
   id_local:               number;
   id_mipres:              string | null;
+  id_direccionamiento?:   string | null;
   id_programacion:        string | null;
   id_entrega:             string | null;
   id_reporte:             string | null;
