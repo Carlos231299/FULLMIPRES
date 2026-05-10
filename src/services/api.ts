@@ -65,7 +65,8 @@ export const sisproPut = (endpoint: string, nit: string, token: string, payload?
 
 export const exportUnitValues = (formData: FormData) =>
   api.post('/batch/export-unit-values', formData, {
-    responseType: 'blob'
+    responseType: 'blob',
+    headers: { 'Content-Type': 'multipart/form-data' } 
   }).then(res => res.data);
 
 export default api;
