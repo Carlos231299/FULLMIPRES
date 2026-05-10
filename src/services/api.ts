@@ -63,4 +63,9 @@ export const sisproGet = (endpoint: string, nit: string, token: string, arg?: st
 export const sisproPut = (endpoint: string, nit: string, token: string, payload?: any, arg?: string) => 
   api.post(`/standalone/call/${endpoint}`, { nit, token, arg, payload }).then(r => r.data);
 
+export const exportUnitValues = (formData: FormData) =>
+  api.post('/batch/export-unit-values', formData, {
+    responseType: 'blob'
+  }).then(res => res.data);
+
 export default api;

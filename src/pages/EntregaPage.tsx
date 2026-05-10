@@ -41,6 +41,35 @@ export const EntregaPage = () => {
     return () => clearError();
   }, [clearError]);
 
+  const handleExportValues = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !nit || !token) return;
+
+    setExportingValues(true);
+    clearError();
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append('archivo', file);
+      formDataUpload.append('nit', nit);
+      formDataUpload.append('token', token);
+
+      const blob = await exportUnitValues(formDataUpload);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ValoresUnitarios_MIPRES_${new Date().getTime()}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setSuccess('Exportación de valores completada con éxito.');
+    } catch (err: any) {
+      setError('Error al exportar valores: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setExportingValues(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleConsultar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!noPrescripcion) return setError('Ingrese NoPrescripción');

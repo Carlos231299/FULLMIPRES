@@ -410,4 +410,97 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
   }
 });
 
+// ============================================================
+// EXPORTACIÓN MASIVA DE VALORES UNITARIOS
+// ============================================================
+router.post('/export-unit-values', upload.single('archivo'), async (req, res) => {
+  try {
+    const { nit, token } = req.body;
+    if (!req.file || !nit || !token) {
+      return res.status(400).json({ ok: false, error: 'NIT, Token y Archivo son requeridos.' });
+    }
+
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const rows = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+    const sanitizeKey = (k) => String(k).trim().toUpperCase().replace(/\s+/g, '');
+    const results = [];
+
+    for (const row of rows) {
+      const rowKeys = Object.keys(row);
+      const findKey = (search) => rowKeys.find(k => sanitizeKey(k).includes(sanitizeKey(search)));
+      
+      const keyMipres = findKey('N°MIPRES') || findKey('MIPRES') || findKey('PRESCRIPCION');
+      const noPres = String(row[keyMipres] || '').trim();
+      if (!noPres) continue;
+
+      try {
+        // Consultar entregas y reportes en paralelo para mayor velocidad
+        const [entregas, reportes] = await Promise.all([
+          MipresApi.getEntregaXPrescripcion(nit, token, noPres),
+          MipresApi.getReporteEntregaXPrescripcion(nit, token, noPres)
+        ]);
+
+        const resEnts = Array.isArray(entregas) ? entregas : [];
+        const resReps = Array.isArray(reportes) ? reportes : [];
+
+        // Por cada entrega física real, buscamos su valor reportado
+        for (const ent of resEnts) {
+          if (ent.FecAnulacion) continue; // Ignorar anuladas
+
+          const idDir = String(ent.IdDireccionamiento || ent.IDDireccionamiento || '');
+          const noEnt = Number(ent.NoEntrega) || 1;
+
+          // Buscar el reporte que coincida con esta entrega
+          const matchRep = resReps.find(r => 
+            !r.FecAnulacion && 
+            Number(r.NoEntrega) === noEnt &&
+            String(r.IdDireccionamiento || r.IDDireccionamiento || '') === idDir
+          );
+
+          const cant = Number(ent.CantTotEntregada) || 0;
+          const valorTotal = matchRep ? (Number(matchRep.ValorEntregado) || 0) : 0;
+          const unitValue = cant > 0 ? (valorTotal / cant) : 0;
+
+          results.push({
+            'N° MIPRES': noPres,
+            'ID Direccionamiento': idDir,
+            'Tecnología': ent.CodSerTecEntregado,
+            'N° Entrega': noEnt,
+            'Cantidad Entregada': cant,
+            'Valor Total Reportado': valorTotal,
+            'Valor Unitario': Number(unitValue.toFixed(2)),
+            'Estado SISPRO': matchRep ? 'Reportado OK' : 'Pendiente Reporte'
+          });
+        }
+
+        if (resEnts.length === 0) {
+          results.push({ 'N° MIPRES': noPres, 'Estado SISPRO': 'Sin entregas registradas' });
+        }
+      } catch (errApi) {
+        results.push({ 
+          'N° MIPRES': noPres, 
+          'Estado SISPRO': 'Error: ' + (errApi.response?.data?.Message || errApi.message) 
+        });
+      }
+      // Pequeño delay de cortesía para la API de SISPRO
+      await sleep(150);
+    }
+
+    const newWs = xlsx.utils.json_to_sheet(results);
+    const newWb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(newWb, newWs, 'Valores MIPRES');
+    const buffer = xlsx.write(newWb, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Disposition', 'attachment; filename="Reporte_Valores_Unitarios.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+
+  } catch (err) {
+    console.error('[Error Export Valores]', err);
+    res.status(500).json({ ok: false, error: 'Error procesando exportación de valores.' });
+  }
+});
+
 export default router;
