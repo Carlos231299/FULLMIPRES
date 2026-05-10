@@ -473,13 +473,13 @@ router.post('/export-unit-values', upload.single('archivo'), async (req, res) =>
 
           results.push({
             'N° MIPRES': noPres,
-            'ID Direccionamiento': idDir,
+            'ID Reporte Entrega': matchRep ? (matchRep.IDReporteEntrega || matchRep.IdReporteEntrega || '') : 'N/A',
             'Tecnología': ent.CodSerTecEntregado,
             'N° Entrega': noEnt,
             'Cantidad Entregada': cant,
             'Valor Total Reportado': valorTotal,
             'Valor Unitario': Number(unitValue.toFixed(2)),
-            'Estado SISPRO': matchRep ? 'Reportado OK' : 'Pendiente Reporte'
+            'Estado SISPRO': matchRep ? 'Reportado OK' : 'Pendiente o Anulado'
           });
         }
 
