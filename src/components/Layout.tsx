@@ -1,14 +1,53 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useRef, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ConfirmDialog } from './ConfirmDialog';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
+import { Modal } from './Modal';
+import { exportUnitValues } from '../services/api';
 
 export const Layout = ({ children }: { children: ReactNode }) => {
-  const { logout, nit } = useAuth();
+  const { logout, nit, token } = useAuth();
   const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Estados para exportación masiva de valores
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [exportingValues, setExportingValues] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+
+  const handleExportValues = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !nit || !token) return;
+
+    setExportingValues(true);
+    const toastId = toast.loading('Procesando reporte en SISPRO...');
+    
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append('archivo', file);
+      // No añadimos nit/token aquí porque el interceptor los pone en los headers
+
+      const blob = await exportUnitValues(formDataUpload);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ValoresUnitarios_MIPRES_${new Date().getTime()}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      
+      toast.success('Reporte generado y descargado con éxito', { id: toastId });
+      setShowExportModal(false);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Error al exportar: ' + (err.response?.data?.error || err.message), { id: toastId });
+    } finally {
+      setExportingValues(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const menuItems = [
     { name: '🧙 Asistente Paso a Paso', path: '/asistente' },
@@ -111,9 +150,38 @@ export const Layout = ({ children }: { children: ReactNode }) => {
                     {text}
                   </span>
                 )}
-              </NavLink>
+          </NavLink>
             );
           })}
+
+          <div style={{ marginTop: '0.5rem', borderTop: '1px solid #334155', paddingTop: '1rem' }}>
+            <button
+              onClick={() => setShowExportModal(true)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0.75rem',
+                color: 'white',
+                background: '#7c3aed',
+                border: 'none',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.2)',
+                justifyContent: isCollapsed ? 'center' : 'flex-start'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = '#6d28d9'}
+              onMouseOut={(e) => e.currentTarget.style.background = '#7c3aed'}
+            >
+              <div style={{ minWidth: '28px', fontSize: '1.2rem', textAlign: 'center' }}>📊</div>
+              {!isCollapsed && (
+                <span style={{ marginLeft: '0.75rem', fontSize: '0.8rem', fontWeight: 700, lineHeight: '1.2' }}>
+                  Exportar Valores Unitarios
+                </span>
+              )}
+            </button>
+          </div>
         </nav>
 
         <div style={{ padding: '1rem', borderTop: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -167,6 +235,66 @@ export const Layout = ({ children }: { children: ReactNode }) => {
         </div>
       </main>
 
+      {/* MODAL DE EXPORTACIÓN MASIVA GLOBAL */}
+      <Modal 
+        isOpen={showExportModal} 
+        onClose={() => !exportingValues && setShowExportModal(false)} 
+        title="Exportación Masiva de Valores Unitarios"
+      >
+        <div style={{ padding: '0.5rem 0' }}>
+          <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem' }}>
+            <h4 style={{ margin: '0 0 1rem 0', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              📖 Instrucciones de la Plantilla
+            </h4>
+            <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.9rem', color: '#0c4a6e', lineHeight: '1.6' }}>
+              <li>Sube un Excel (<strong>.xlsx</strong> o <strong>.xls</strong>).</li>
+              <li>Debe tener la columna <strong>N° MIPRES</strong> o <strong>PRESCRIPCION</strong>.</li>
+              <li>El sistema calculará automáticamente el valor unitario (Reportado / Cantidad).</li>
+            </ul>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '2.5rem', border: '2px dashed #e2e8f0', borderRadius: '16px', background: '#f8fafc' }}>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleExportValues} 
+              style={{ display: 'none' }} 
+              accept=".xlsx,.xls"
+            />
+            
+            {exportingValues ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                <div className="spinner" style={{ width: '40px', height: '40px', border: '4px solid #f3f3f3', borderTop: '4px solid #8b5cf6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                <p style={{ fontWeight: 600, color: '#1e293b', margin: 0 }}>Procesando en SISPRO...</p>
+                <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>Estamos cruzando entregas con reportes de valor.</p>
+              </div>
+            ) : (
+              <>
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ 
+                    padding: '1rem 2rem', 
+                    background: '#7c3aed', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '12px', 
+                    cursor: 'pointer', 
+                    fontWeight: 700,
+                    fontSize: '1rem',
+                    boxShadow: '0 4px 12px -2px rgba(124, 58, 237, 0.4)'
+                  }}
+                >
+                  📁 Seleccionar Archivo Excel
+                </button>
+                <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '1.25rem' }}>
+                  Haz clic para iniciar el proceso masivo
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      </Modal>
+
       <ConfirmDialog 
         isOpen={showLogoutConfirm}
         onClose={() => setShowLogoutConfirm(false)}
@@ -177,6 +305,13 @@ export const Layout = ({ children }: { children: ReactNode }) => {
         type="danger"
       />
       <Toaster richColors position="top-right" />
+
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

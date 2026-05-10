@@ -415,7 +415,9 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
 // ============================================================
 router.post('/export-unit-values', upload.single('archivo'), async (req, res) => {
   try {
-    const { nit, token } = req.body;
+    const nit = req.headers['x-nit'];
+    const token = req.headers['x-token'];
+    
     if (!req.file || !nit || !token) {
       return res.status(400).json({ ok: false, error: 'NIT, Token y Archivo son requeridos.' });
     }
