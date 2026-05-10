@@ -14,20 +14,26 @@ export const Layout = ({ children }: { children: ReactNode }) => {
 
   // Estados para exportación masiva de valores
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [exportingValues, setExportingValues] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
 
-  const handleExportValues = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !nit || !token) return;
+    if (file) setSelectedFile(file);
+  };
+
+  const handleExportValues = async () => {
+    if (!selectedFile || !nit || !token) return;
 
     setExportingValues(true);
     const toastId = toast.loading('Procesando reporte en SISPRO...');
     
     try {
       const formDataUpload = new FormData();
-      formDataUpload.append('archivo', file);
-      // No añadimos nit/token aquí porque el interceptor los pone en los headers
+      formDataUpload.append('archivo', selectedFile);
+      formDataUpload.append('nit', nit); // Backup por si fallan los headers
+      formDataUpload.append('token', token);
 
       const blob = await exportUnitValues(formDataUpload);
       const url = window.URL.createObjectURL(new Blob([blob]));
@@ -40,6 +46,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
       
       toast.success('Reporte generado y descargado con éxito', { id: toastId });
       setShowExportModal(false);
+      setSelectedFile(null);
     } catch (err: any) {
       console.error(err);
       toast.error('Error al exportar: ' + (err.response?.data?.error || err.message), { id: toastId });
@@ -253,11 +260,11 @@ export const Layout = ({ children }: { children: ReactNode }) => {
             </ul>
           </div>
 
-          <div style={{ textAlign: 'center', padding: '2.5rem', border: '2px dashed #e2e8f0', borderRadius: '16px', background: '#f8fafc' }}>
+          <div style={{ textAlign: 'center', padding: '2rem', border: '2px dashed #e2e8f0', borderRadius: '16px', background: '#f8fafc' }}>
             <input 
               type="file" 
               ref={fileInputRef} 
-              onChange={handleExportValues} 
+              onChange={handleFileChange} 
               style={{ display: 'none' }} 
               accept=".xlsx,.xls"
             />
@@ -270,25 +277,60 @@ export const Layout = ({ children }: { children: ReactNode }) => {
               </div>
             ) : (
               <>
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{ 
-                    padding: '1rem 2rem', 
-                    background: '#7c3aed', 
-                    color: 'white', 
-                    border: 'none', 
-                    borderRadius: '12px', 
-                    cursor: 'pointer', 
-                    fontWeight: 700,
-                    fontSize: '1rem',
-                    boxShadow: '0 4px 12px -2px rgba(124, 58, 237, 0.4)'
-                  }}
-                >
-                  📁 Seleccionar Archivo Excel
-                </button>
-                <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '1.25rem' }}>
-                  Haz clic para iniciar el proceso masivo
-                </p>
+                {!selectedFile ? (
+                  <>
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{ 
+                        padding: '1rem 2rem', 
+                        background: '#7c3aed', 
+                        color: 'white', 
+                        border: 'none', 
+                        borderRadius: '12px', 
+                        cursor: 'pointer', 
+                        fontWeight: 700,
+                        fontSize: '1rem',
+                        boxShadow: '0 4px 12px -2px rgba(124, 58, 237, 0.4)'
+                      }}
+                    >
+                      📁 Seleccionar Archivo Excel
+                    </button>
+                    <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '1.25rem' }}>
+                      Haz clic para elegir tu plantilla de MIPRES
+                    </p>
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+                    <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', padding: '1rem', borderRadius: '12px', width: '100%' }}>
+                      <p style={{ margin: 0, fontSize: '0.9rem', color: '#065f46', fontWeight: 600 }}>
+                        📄 Archivo listo: {selectedFile.name}
+                      </p>
+                      <button 
+                        onClick={() => setSelectedFile(null)} 
+                        style={{ background: 'none', border: 'none', color: '#047857', fontSize: '0.75rem', textDecoration: 'underline', cursor: 'pointer', marginTop: '0.5rem' }}
+                      >
+                        Cambiar archivo
+                      </button>
+                    </div>
+                    <button 
+                      onClick={handleExportValues}
+                      style={{ 
+                        width: '100%',
+                        padding: '1rem', 
+                        background: '#10b981', 
+                        color: 'white', 
+                        border: 'none', 
+                        borderRadius: '12px', 
+                        cursor: 'pointer', 
+                        fontWeight: 700,
+                        fontSize: '1.1rem',
+                        boxShadow: '0 4px 12px -2px rgba(16, 185, 129, 0.4)'
+                      }}
+                    >
+                      🚀 Comenzar Procesamiento
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
