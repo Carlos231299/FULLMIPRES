@@ -493,7 +493,7 @@ router.post('/export-unit-values', upload.single('archivo'), async (req, res) =>
         });
       }
       // Pequeño delay de cortesía para la API de SISPRO
-      await sleep(150);
+      await sleep(40);
     }
 
     const newWs = xlsx.utils.json_to_sheet(results);
