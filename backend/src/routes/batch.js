@@ -433,16 +433,18 @@ router.post('/export-unit-values', upload.single('archivo'), async (req, res) =>
     const rows = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
     const sanitizeKey = (k) => String(k).trim().toUpperCase().replace(/\s+/g, '');
-    const results = [];
-
-    for (const row of rows) {
+    
+    // Deduplicar la lista de MIPRES para evitar resultados repetidos
+    const uniqueMipres = Array.from(new Set(rows.map(row => {
       const rowKeys = Object.keys(row);
       const findKey = (search) => rowKeys.find(k => sanitizeKey(k).includes(sanitizeKey(search)));
-      
       const keyMipres = findKey('N°MIPRES') || findKey('MIPRES') || findKey('PRESCRIPCION');
-      const noPres = String(row[keyMipres] || '').trim();
-      if (!noPres) continue;
+      return String(row[keyMipres] || '').trim();
+    }))).filter(m => m !== '');
 
+    const results = [];
+
+    for (const noPres of uniqueMipres) {
       try {
         // Consultar entregas y reportes en paralelo para mayor velocidad
         const [entregas, reportes] = await Promise.all([
