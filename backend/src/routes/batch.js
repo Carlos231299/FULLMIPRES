@@ -547,13 +547,15 @@ router.post('/query-reporte-entrega', upload.single('archivo'), async (req, res)
           continue;
         }
 
-        const [reportes, entregas] = await Promise.all([
+        const [reportes, entregas, facturas] = await Promise.all([
           MipresApi.getReporteEntregaXPrescripcion(nit, token, noPrescripcion).catch(() => []),
-          MipresApi.getEntregaXPrescripcion(nit, token, noPrescripcion).catch(() => [])
+          MipresApi.getEntregaXPrescripcion(nit, token, noPrescripcion).catch(() => []),
+          MipresApi.getFacturacionXPrescripcion(nit, token, noPrescripcion).catch(() => [])
         ]);
 
         const resReps = Array.isArray(reportes) ? reportes : [];
         const resEnts = Array.isArray(entregas) ? entregas : [];
+        const resFacts = Array.isArray(facturas) ? facturas : [];
 
         if (resReps.length === 0) {
           const errRow = { ...row };
@@ -568,6 +570,10 @@ router.post('/query-reporte-entrega', upload.single('archivo'), async (req, res)
             Number(e.NoEntrega) === noEnt &&
             String(e.IdDireccionamiento || e.IDDireccionamiento || '') === String(rep.IdDireccionamiento || rep.IDDireccionamiento || '')
           );
+          const facturado = resFacts.some(f =>
+            Number(f.NoEntrega) === noEnt &&
+            !f.FecAnulacion
+          );
 
           const outRow = {
             ...row,
@@ -577,6 +583,7 @@ router.post('/query-reporte-entrega', upload.single('archivo'), async (req, res)
             ValorEntregado: rep.ValorEntregado || '0',
             EstadoEntrega: rep.EstadoEntrega === 1 ? 'Efectiva' : 'No Efectiva',
             Estado: rep.FecAnulacion ? 'Anulado' : 'Activo',
+            Facturado: facturado ? 'Sí' : 'No',
             Resultado_Consulta: '✅ Encontrado',
           };
           outputRows.push(outRow);
