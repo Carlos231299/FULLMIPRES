@@ -572,46 +572,48 @@ router.post('/query-reporte-entrega', upload.single('archivo'), async (req, res)
           const noEnt = Number(dir.NoEntrega) || 0;
           const idDir = String(dir.IDDireccionamiento || dir.IdDireccionamiento || dir.IDDIRECCIONAMIENTO || '');
 
-          const matchRep = resReps.find(r =>
-            Number(r.NoEntrega) === noEnt &&
-            String(r.IdDireccionamiento || r.IDDireccionamiento || '') === idDir
-          );
           const matchEnt = resEnts.find(e =>
             Number(e.NoEntrega) === noEnt &&
-            String(e.IdDireccionamiento || e.IDDireccionamiento || '') === idDir
+            String(e.IdDireccionamiento || e.IDDireccionamiento || '') === idDir &&
+            !e.FecAnulacion
+          );
+          const matchRep = resReps.find(r =>
+            Number(r.NoEntrega) === noEnt &&
+            String(r.IdDireccionamiento || r.IDDireccionamiento || '') === idDir &&
+            !r.FecAnulacion
           );
           const facturado = resFacts.some(f =>
             Number(f.NoEntrega) === noEnt &&
             !f.FecAnulacion
           );
 
+          let estado, resultado;
           if (matchRep) {
-            const outRow = {
-              ...row,
-              NoEntrega: noEnt,
-              CodSerTecEntregado: matchEnt?.CodSerTecEntregado || dir.CodSerTecAEntregar || '',
-              IDReporteEntrega: matchRep.IDReporteEntrega || matchRep.IdReporteEntrega || '',
-              ValorEntregado: matchRep.ValorEntregado || '0',
-              EstadoEntrega: matchRep.EstadoEntrega === 1 ? 'Efectiva' : 'No Efectiva',
-              Estado: matchRep.FecAnulacion ? 'Anulado' : 'Reportado',
-              Facturado: facturado ? 'Sí' : 'No',
-              Resultado_Consulta: '✅ Reportado',
-            };
-            outputRows.push(outRow);
+            estado = 'Reportado';
+            resultado = '✅ Reportado';
+          } else if (matchEnt) {
+            estado = 'Entregado sin reportar';
+            resultado = '⚠️ Entregado — falta reporte';
           } else {
-            const outRow = {
-              ...row,
-              NoEntrega: noEnt,
-              CodSerTecEntregado: dir.CodSerTecAEntregar || '',
-              IDReporteEntrega: '',
-              ValorEntregado: '',
-              EstadoEntrega: '',
-              Estado: 'Pendiente',
-              Facturado: 'No',
-              Resultado_Consulta: '⏳ Sin reporte de entrega',
-            };
-            outputRows.push(outRow);
+            estado = 'Pendiente de entregar';
+            resultado = '⏳ Pendiente — sin entrega ni reporte';
           }
+
+          const outRow = {
+            ...row,
+            NoEntrega: noEnt,
+            CodSerTec: matchEnt?.CodSerTecEntregado || dir.CodSerTecAEntregar || '',
+            CantTotAEntregar: dir.CantTotAEntregar || '',
+            CantTotEntregada: matchEnt?.CantTotEntregada || '',
+            FecEntrega: matchEnt?.FecEntrega || '',
+            IDReporteEntrega: matchRep?.IDReporteEntrega || matchRep?.IdReporteEntrega || '',
+            ValorEntregado: matchRep?.ValorEntregado || '',
+            EstadoEntrega: matchRep?.EstadoEntrega === 1 ? 'Efectiva' : matchRep?.EstadoEntrega === 0 ? 'No Efectiva' : '',
+            Facturado: facturado ? 'Sí' : 'No',
+            Estado: estado,
+            Resultado_Consulta: resultado,
+          };
+          outputRows.push(outRow);
         }
 
         await sleep(150);
