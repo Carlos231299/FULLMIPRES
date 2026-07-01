@@ -547,46 +547,71 @@ router.post('/query-reporte-entrega', upload.single('archivo'), async (req, res)
           continue;
         }
 
-        const [reportes, entregas, facturas] = await Promise.all([
+        const [direccionamientos, reportes, entregas, facturas] = await Promise.all([
+          MipresApi.getDireccionamientoXPrescripcion(nit, token, noPrescripcion).catch(() => []),
           MipresApi.getReporteEntregaXPrescripcion(nit, token, noPrescripcion).catch(() => []),
           MipresApi.getEntregaXPrescripcion(nit, token, noPrescripcion).catch(() => []),
           MipresApi.getFacturacionXPrescripcion(nit, token, noPrescripcion).catch(() => [])
         ]);
 
+        const resDirs = Array.isArray(direccionamientos) ? direccionamientos : [];
         const resReps = Array.isArray(reportes) ? reportes : [];
         const resEnts = Array.isArray(entregas) ? entregas : [];
         const resFacts = Array.isArray(facturas) ? facturas : [];
 
-        if (resReps.length === 0) {
+        if (resDirs.length === 0) {
           const errRow = { ...row };
-          errRow['Resultado_Consulta'] = 'Sin reportes de entrega en SISPRO';
+          errRow['Resultado_Consulta'] = 'Sin direccionamientos en SISPRO';
           outputRows.push(errRow);
           continue;
         }
 
-        for (const rep of resReps) {
-          const noEnt = Number(rep.NoEntrega) || 0;
+        for (const dir of resDirs) {
+          if (dir.FecAnulacion) continue;
+
+          const noEnt = Number(dir.NoEntrega) || 0;
+          const idDir = String(dir.IDDireccionamiento || dir.IdDireccionamiento || dir.IDDIRECCIONAMIENTO || '');
+
+          const matchRep = resReps.find(r =>
+            Number(r.NoEntrega) === noEnt &&
+            String(r.IdDireccionamiento || r.IDDireccionamiento || '') === idDir
+          );
           const matchEnt = resEnts.find(e =>
             Number(e.NoEntrega) === noEnt &&
-            String(e.IdDireccionamiento || e.IDDireccionamiento || '') === String(rep.IdDireccionamiento || rep.IDDireccionamiento || '')
+            String(e.IdDireccionamiento || e.IDDireccionamiento || '') === idDir
           );
           const facturado = resFacts.some(f =>
             Number(f.NoEntrega) === noEnt &&
             !f.FecAnulacion
           );
 
-          const outRow = {
-            ...row,
-            NoEntrega: noEnt,
-            CodSerTecEntregado: matchEnt?.CodSerTecEntregado || '',
-            IDReporteEntrega: rep.IDReporteEntrega || rep.IdReporteEntrega || '',
-            ValorEntregado: rep.ValorEntregado || '0',
-            EstadoEntrega: rep.EstadoEntrega === 1 ? 'Efectiva' : 'No Efectiva',
-            Estado: rep.FecAnulacion ? 'Anulado' : 'Activo',
-            Facturado: facturado ? 'Sí' : 'No',
-            Resultado_Consulta: '✅ Encontrado',
-          };
-          outputRows.push(outRow);
+          if (matchRep) {
+            const outRow = {
+              ...row,
+              NoEntrega: noEnt,
+              CodSerTecEntregado: matchEnt?.CodSerTecEntregado || dir.CodSerTecAEntregar || '',
+              IDReporteEntrega: matchRep.IDReporteEntrega || matchRep.IdReporteEntrega || '',
+              ValorEntregado: matchRep.ValorEntregado || '0',
+              EstadoEntrega: matchRep.EstadoEntrega === 1 ? 'Efectiva' : 'No Efectiva',
+              Estado: matchRep.FecAnulacion ? 'Anulado' : 'Reportado',
+              Facturado: facturado ? 'Sí' : 'No',
+              Resultado_Consulta: '✅ Reportado',
+            };
+            outputRows.push(outRow);
+          } else {
+            const outRow = {
+              ...row,
+              NoEntrega: noEnt,
+              CodSerTecEntregado: dir.CodSerTecAEntregar || '',
+              IDReporteEntrega: '',
+              ValorEntregado: '',
+              EstadoEntrega: '',
+              Estado: 'Pendiente',
+              Facturado: 'No',
+              Resultado_Consulta: '⏳ Sin reporte de entrega',
+            };
+            outputRows.push(outRow);
+          }
         }
 
         await sleep(150);
