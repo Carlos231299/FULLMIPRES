@@ -571,20 +571,20 @@ router.post('/query-reporte-entrega', upload.single('archivo'), async (req, res)
 
           const noEnt = Number(dir.NoEntrega) || 0;
           const idDir = String(dir.IDDireccionamiento || dir.IdDireccionamiento || dir.IDDIRECCIONAMIENTO || '');
+          const idReg = String(dir.ID || dir.Id || '');
 
           const matchEnt = resEnts.find(e =>
-            Number(e.NoEntrega) === noEnt &&
-            String(e.IdDireccionamiento || e.IDDireccionamiento || '') === idDir &&
-            !e.FecAnulacion
+            Number(e.NoEntrega) === noEnt && !e.FecAnulacion &&
+            (String(e.IdDireccionamiento || e.IDDireccionamiento || '') === idDir ||
+             String(e.ID || e.Id || '') === idReg)
           );
           const matchRep = resReps.find(r =>
-            Number(r.NoEntrega) === noEnt &&
-            String(r.IdDireccionamiento || r.IDDireccionamiento || '') === idDir &&
-            !r.FecAnulacion
+            Number(r.NoEntrega) === noEnt && !r.FecAnulacion &&
+            (String(r.IdDireccionamiento || r.IDDireccionamiento || '') === idDir ||
+             String(r.ID || r.Id || '') === idReg)
           );
           const facturado = resFacts.some(f =>
-            Number(f.NoEntrega) === noEnt &&
-            !f.FecAnulacion
+            Number(f.NoEntrega) === noEnt && !f.FecAnulacion
           );
 
           let estado, resultado;
