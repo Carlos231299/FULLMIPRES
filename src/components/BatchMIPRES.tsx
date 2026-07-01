@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import * as xlsx from 'xlsx';
 import { ExcelAutoOpenHint } from './ExcelAutoOpenHint';
+import { consultaMasivaReportes } from '../services/api';
 
 export const BatchMIPRES = () => {
   const { nit, token } = useAuth();
@@ -10,6 +11,9 @@ export const BatchMIPRES = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showHint, setShowHint] = useState(false);
+
+  const [queryFile, setQueryFile] = useState<File | null>(null);
+  const [isQuerying, setIsQuerying] = useState(false);
 
   const downloadTemplate = () => {
     const template = [
@@ -125,6 +129,46 @@ export const BatchMIPRES = () => {
     }
   };
 
+  const handleQueryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setQueryFile(e.target.files[0]);
+    }
+  };
+
+  const handleQuerySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!queryFile) {
+      setError('Por favor, selecciona un archivo Excel (.xlsx)');
+      return;
+    }
+
+    setIsQuerying(true);
+    setError('');
+    setSuccess('');
+
+    const formData = new FormData();
+    formData.append('archivo', queryFile);
+    formData.append('nit', nit || '');
+    formData.append('token', token || '');
+
+    try {
+      const blob = await consultaMasivaReportes(formData);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Reportes_Entrega_${new Date().toISOString().split('T')[0]}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setSuccess('Consulta masiva completada. El archivo se ha descargado.');
+      setQueryFile(null);
+    } catch (err: any) {
+      setError(err.message || 'Error al consultar reportes.');
+    } finally {
+      setIsQuerying(false);
+    }
+  };
+
   return (
     <div style={{ maxWidth: '800px', margin: '2rem auto', padding: '2rem', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#ffffff', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
@@ -204,6 +248,53 @@ export const BatchMIPRES = () => {
       </form>
 
       <ExcelAutoOpenHint visible={showHint} />
+
+      <hr style={{ margin: '2.5rem 0', border: 'none', borderTop: '2px solid #e2e8f0' }} />
+
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+          <h2 style={{ margin: 0, color: '#1e293b' }}>Consulta Masiva de Reportes (solo lectura) 📋</h2>
+        </div>
+        <p style={{ color: '#64748b', marginBottom: '0.75rem' }}>
+          Sube un Excel con los números de prescripción (<strong>N° MIPRES</strong>). El sistema consultará SISPRO y devolverá el mismo archivo con las columnas <strong>NoEntrega</strong>, <strong>CodSerTecEntregado</strong>, <strong>IDReporteEntrega</strong>, <strong>ValorEntregado</strong>, <strong>EstadoEntrega</strong> y <strong>Estado</strong>.
+        </p>
+
+        <form onSubmit={handleQuerySubmit}>
+          <div style={{ padding: '2rem', border: '2px dashed #cbd5e1', borderRadius: '8px', textAlign: 'center', marginBottom: '1.5rem', background: '#f8fafc' }}>
+            <label style={{ cursor: 'pointer', display: 'block' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📋</div>
+              <strong style={{ display: 'block', marginBottom: '0.5rem' }}>Selecciona el Excel con N° MIPRES</strong>
+              <span style={{ color: '#64748b' }}>{queryFile ? queryFile.name : 'Ningún archivo seleccionado'}</span>
+              <input
+                type="file"
+                accept=".xlsx, .xls"
+                onChange={handleQueryFileChange}
+                style={{ display: 'none' }}
+                disabled={isQuerying}
+              />
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            disabled={!queryFile || isQuerying}
+            style={{
+              width: '100%',
+              padding: '1rem',
+              background: (queryFile && !isQuerying) ? '#7c3aed' : '#94a3b8',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '1.1rem',
+              fontWeight: 'bold',
+              cursor: (queryFile && !isQuerying) ? 'pointer' : 'not-allowed',
+              transition: 'background 0.3s'
+            }}
+          >
+            {isQuerying ? 'Consultando SISPRO...' : 'Consultar Reportes'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 };

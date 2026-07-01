@@ -70,4 +70,11 @@ export const exportUnitValues = (formData: FormData) =>
     headers: { 'Content-Type': 'multipart/form-data' } 
   }).then(res => res.data);
 
+export const consultaMasivaReportes = (formData: FormData) =>
+  api.post('/batch/query-reporte-entrega', formData, {
+    responseType: 'blob',
+    timeout: 0,
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }).then(r => r.data);
+
 export default api;
