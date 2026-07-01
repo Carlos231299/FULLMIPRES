@@ -530,6 +530,7 @@ router.post('/query-reporte-entrega', upload.single('archivo'), async (req, res)
     if (rows.length === 0) return res.status(400).json({ ok: false, error: 'Excel vacío.' });
 
     const sanitizeKey = (k) => String(k).trim().toUpperCase().replace(/\s+/g, '');
+    const outputRows = [];
 
     for (const row of rows) {
       try {
@@ -540,7 +541,9 @@ router.post('/query-reporte-entrega', upload.single('archivo'), async (req, res)
         const noPrescripcion = String(row[keyNoMipres] || '').trim();
 
         if (!noPrescripcion) {
-          row['Resultado_Consulta'] = 'Omitido: N° MIPRES vacío';
+          const errRow = { ...row };
+          errRow['Resultado_Consulta'] = 'Omitido: N° MIPRES vacío';
+          outputRows.push(errRow);
           continue;
         }
 
@@ -553,53 +556,41 @@ router.post('/query-reporte-entrega', upload.single('archivo'), async (req, res)
         const resEnts = Array.isArray(entregas) ? entregas : [];
 
         if (resReps.length === 0) {
-          row['Resultado_Consulta'] = 'Sin reportes de entrega en SISPRO';
+          const errRow = { ...row };
+          errRow['Resultado_Consulta'] = 'Sin reportes de entrega en SISPRO';
+          outputRows.push(errRow);
           continue;
         }
 
-        const resultados = resReps.map(rep => {
+        for (const rep of resReps) {
           const noEnt = Number(rep.NoEntrega) || 0;
           const matchEnt = resEnts.find(e =>
             Number(e.NoEntrega) === noEnt &&
             String(e.IdDireccionamiento || e.IDDireccionamiento || '') === String(rep.IdDireccionamiento || rep.IDDireccionamiento || '')
           );
 
-          return {
+          const outRow = {
+            ...row,
             NoEntrega: noEnt,
             CodSerTecEntregado: matchEnt?.CodSerTecEntregado || '',
             IDReporteEntrega: rep.IDReporteEntrega || rep.IdReporteEntrega || '',
             ValorEntregado: rep.ValorEntregado || '0',
             EstadoEntrega: rep.EstadoEntrega === 1 ? 'Efectiva' : 'No Efectiva',
             Estado: rep.FecAnulacion ? 'Anulado' : 'Activo',
+            Resultado_Consulta: '✅ Encontrado',
           };
-        });
-
-        row['NoEntrega'] = resultados.map(r => r.NoEntrega).join(', ');
-        row['CodSerTecEntregado'] = resultados.map(r => r.CodSerTecEntregado).join(', ');
-        row['IDReporteEntrega'] = resultados.map(r => r.IDReporteEntrega).join(', ');
-        row['ValorEntregado'] = resultados.map(r => r.ValorEntregado).join(', ');
-        row['EstadoEntrega'] = resultados.map(r => r.EstadoEntrega).join(', ');
-        row['Estado'] = resultados.map(r => r.Estado).join(', ');
-        row['Resultado_Consulta'] = `✅ ${resultados.length} reporte(s) encontrado(s)`;
+          outputRows.push(outRow);
+        }
 
         await sleep(150);
       } catch (err) {
-        row['Resultado_Consulta'] = 'Error: ' + (err.response?.data?.Message || err.response?.data || err.message);
+        const errRow = { ...row };
+        errRow['Resultado_Consulta'] = 'Error: ' + (err.response?.data?.Message || err.response?.data || err.message);
+        outputRows.push(errRow);
       }
     }
 
-    const processedRows = rows.map(r => {
-      const newRow = Object.fromEntries(Object.entries(r).filter(([k]) => !k.startsWith('__EMPTY')));
-
-      const cols = ['NoEntrega', 'CodSerTecEntregado', 'IDReporteEntrega', 'ValorEntregado', 'EstadoEntrega', 'Estado', 'Resultado_Consulta'];
-      const vals = Object.fromEntries(cols.map(c => [c, newRow[c] || '']));
-      cols.forEach(c => delete newRow[c]);
-      cols.forEach(c => { newRow[c] = vals[c]; });
-
-      return newRow;
-    });
-
-    const newWorksheet = xlsx.utils.json_to_sheet(processedRows);
+    const newWorksheet = xlsx.utils.json_to_sheet(outputRows);
     const newWorkbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(newWorkbook, newWorksheet, 'Resultados Consulta');
     const excelBuffer = xlsx.write(newWorkbook, { type: 'buffer', bookType: 'xlsx' });
