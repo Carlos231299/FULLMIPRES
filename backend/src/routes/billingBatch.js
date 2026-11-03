@@ -414,79 +414,107 @@ router.post('/query-excel', upload.single('archivo'), async (req, res) => {
     const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    let rows = xlsx.utils.sheet_to_json(worksheet, { defval: '' });
+    const rows = xlsx.utils.sheet_to_json(worksheet, { defval: '' });
 
     if (rows.length === 0) return res.status(400).json({ ok: false, error: 'Excel vacío.' });
 
-    for (const [index, row] of rows.entries()) {
+    // Normaliza códigos de tecnología (quita guiones, espacios, puntos, etc.)
+    const normalize = (val) => String(val || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    // Una factura está anulada si FecAnulacion trae un valor real (no vacío ni "null")
+    const isAnnuled = (val) => {
+      const s = String(val ?? '').trim().toLowerCase();
+      return s !== '' && s !== 'null' && s !== 'undefined';
+    };
+
+    const resultCols = ['CUFE_ENCONTRADO', 'ID_FACTURACION', 'FECHA_FACTURACION', 'ESTADO', 'FECHA_ANULACION', 'VALOR_SISPRO', 'Resultado_Consulta'];
+    const outputRows = [];
+
+    for (const row of rows) {
+      const rowKeys = Object.keys(row);
+      const findKey = (search) => rowKeys.find(k => sanitizeKey(k).includes(sanitizeKey(search)));
+
+      const keyNoMipres = findKey('N°MIPRES') || findKey('PRESCRIPCION');
+      const keyNoEntrega = findKey('NOENTREGA') || findKey('ENTREGA');
+      const keyCodTec = findKey('COD_TEC') || findKey('TECNOLOGIA') || findKey('CODIGO');
+
+      const noPrescripcion = String(row[keyNoMipres] || '').trim();
+      const noEntregaFila = Number(row[keyNoEntrega]) || 0;
+      const codTecFila = String(row[keyCodTec] || '').trim().toUpperCase();
+      const codTecNorm = normalize(codTecFila);
+
+      const baseRow = Object.fromEntries(Object.entries(row).filter(([k]) => !k.startsWith('__EMPTY')));
+
+      if (!noPrescripcion || !noEntregaFila || !codTecNorm) {
+        outputRows.push({
+          ...baseRow,
+          Resultado_Consulta: 'Omitido: N° MIPRES, Entrega o COD_TEC incompleto',
+        });
+        continue;
+      }
+
       try {
-        const rowKeys = Object.keys(row);
-        const findKey = (search) => rowKeys.find(k => sanitizeKey(k).includes(sanitizeKey(search)));
-
-        const keyNoMipres = findKey('N°MIPRES') || findKey('PRESCRIPCION');
-        const keyNoEntrega = findKey('NOENTREGA') || findKey('ENTREGA');
-
-        const noPrescripcion = String(row[keyNoMipres] || '').trim();
-        const noEntregaFila = Number(row[keyNoEntrega]) || 0;
-
-        if (!noPrescripcion || !noEntregaFila) {
-          row['Resultado_Consulta'] = 'Omitido: N° MIPRES o Entrega incompleto';
-          continue;
-        }
-
         // --- PASO 1: Consultar facturas en SISPRO ---
         const facturas = await MipresApi.getFacturacionXPrescripcion(nit, token, noPrescripcion);
-        
+
         if (!Array.isArray(facturas) || facturas.length === 0) {
-          row['Resultado_Consulta'] = 'Sin facturas registradas para este MIPRES';
+          outputRows.push({
+            ...baseRow,
+            Resultado_Consulta: 'Sin facturas registradas para este MIPRES',
+          });
           continue;
         }
 
-        const fFound = facturas.find(f => Number(f.NoEntrega) === noEntregaFila);
-        
-        if (!fFound) {
-          row['Resultado_Consulta'] = `No se encontró factura para la Entrega #${noEntregaFila}`;
+        // --- PASO 2: Filtrar por Entrega + Tecnología (todas las coincidencias) ---
+        const matches = facturas.filter(f =>
+          Number(f.NoEntrega) === noEntregaFila &&
+          normalize(f.CodSerTecAEntregado ?? f.CodSerTecEntregado) === codTecNorm
+        );
+
+        if (matches.length === 0) {
+          outputRows.push({
+            ...baseRow,
+            Resultado_Consulta: `No se encontró factura para la Entrega #${noEntregaFila} con tecnología ${codTecFila}`,
+          });
           continue;
         }
 
-        // --- PASO 2: Extraer datos ---
-        const cufe = fFound.NoFactura || '';
-        const idBill = fFound.IDFacturacion || fFound.IdFacturacion || fFound.ID || fFound.id || '';
-        const fecha = fFound.FecFactura || fFound.FecFacturacion || fFound.FechaFactura || fFound.Fecha || '';
-        const valor = fFound.ValorTotFacturado || '0';
+        // --- PASO 3: Extraer datos de cada factura encontrada ---
+        for (const fFound of matches) {
+          const cufe = fFound.NoFactura || '';
+          const idBill = fFound.IDFacturacion || fFound.IdFacturacion || fFound.ID || fFound.id || '';
+          const fecha = fFound.FecFactura || fFound.FecFacturacion || fFound.FechaFactura || fFound.Fecha || '';
+          const valor = fFound.ValorTotFacturado || '0';
+          const anulada = isAnnuled(fFound.FecAnulacion);
 
-        row['CUFE_ENCONTRADO'] = cufe;
-        row['ID_FACTURACION'] = idBill;
-        row['FECHA_FACTURACION'] = fecha;
-        row['VALOR_SISPRO'] = valor;
-        row['Resultado_Consulta'] = '✅ Consulta Exitosa';
+          outputRows.push({
+            ...baseRow,
+            CUFE_ENCONTRADO: cufe,
+            ID_FACTURACION: idBill,
+            FECHA_FACTURACION: fecha,
+            ESTADO: anulada ? 'Anulada' : 'Activa',
+            FECHA_ANULACION: anulada ? fFound.FecAnulacion : '',
+            VALOR_SISPRO: valor,
+            Resultado_Consulta: '✅ Consulta Exitosa',
+          });
+        }
 
         await sleep(150);
 
       } catch (err) {
-        let errorMsg = err.response?.data?.Message || err.response?.data || err.message;
-        row['Resultado_Consulta'] = 'Error: ' + errorMsg;
+        const errorMsg = err.response?.data?.Message || err.response?.data || err.message;
+        outputRows.push({
+          ...baseRow,
+          Resultado_Consulta: 'Error: ' + errorMsg,
+        });
       }
     }
 
-    const processedRows = rows.map(r => {
-      const newRow = Object.fromEntries(Object.entries(r).filter(([k]) => !k.startsWith('__EMPTY')));
-      // Priorizar columnas de resultado al final para legibilidad
-      const log = newRow['Resultado_Consulta'] || '';
-      const cufe = newRow['CUFE_ENCONTRADO'] || '';
-      const idS = newRow['ID_FACTURACION'] || '';
-      const fecha = newRow['FECHA_FACTURACION'] || '';
-      
-      delete newRow['Resultado_Consulta'];
-      delete newRow['CUFE_ENCONTRADO'];
-      delete newRow['ID_FACTURACION'];
-      delete newRow['FECHA_FACTURACION'];
-      
-      newRow['CUFE_ENCONTRADO'] = cufe;
-      newRow['FECHA_FACTURACION'] = fecha;
-      newRow['ID_FACTURACION'] = idS;
-      newRow['Resultado_Consulta'] = log;
-      
+    // Reordenar columnas de resultado al final para legibilidad
+    const processedRows = outputRows.map(r => {
+      const newRow = Object.fromEntries(Object.entries(r).filter(([k]) => !resultCols.includes(k)));
+      for (const col of resultCols) {
+        newRow[col] = r[col] ?? '';
+      }
       return newRow;
     });
 
