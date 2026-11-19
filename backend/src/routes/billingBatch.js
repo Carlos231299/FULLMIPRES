@@ -11,6 +11,12 @@ const sanitizeKey = (k) => String(k).trim().toUpperCase().replace(/\s+/g, '');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Una factura está anulada si FecAnulacion trae un valor real (no vacío ni "null")
+const isAnnuled = (val) => {
+  const s = String(val ?? '').trim().toLowerCase();
+  return s !== '' && s !== 'null' && s !== 'undefined';
+};
+
 // ============================================================
 // CARGA MASIVA - FACTURACIÓN
 // ============================================================
@@ -31,6 +37,8 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
     for (const [index, row] of rows.entries()) {
         let noPrescripcion = '';
         let noEntregaFila = 0;
+        let codTecFila = '';
+        let refacturadaTrasAnulacion = false;
 
         try {
           const rowKeys = Object.keys(row);
@@ -48,7 +56,7 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
           const noFactura = String(row[keyNoFactura] || '').trim();
           const noIdEpsManual = String(row[keyNoIdEps] || '').trim();
           noEntregaFila = Number(row[keyNoEntrega]) || 0;
-          const codTecFila = String(row[keyCodTec] || '').trim().toUpperCase();
+          codTecFila = String(row[keyCodTec] || '').trim().toUpperCase();
 
           // Mapear REGIMEN (texto legible) o CODEPS (código directo)
           const regimenTexto = String(row[keyRegimen] || '').trim().toLowerCase();
@@ -83,18 +91,22 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
           } catch (e) { console.error("Error consultando facturas previas:", e.message); }
 
           if (Array.isArray(facturasExistentes)) {
-            const fExist = facturasExistentes.find(f => 
-              Number(f.NoEntrega) === noEntregaFila && 
-              normalize(f.CodSerTecAEntregado) === codTecNorm
+            const matches = facturasExistentes.filter(f =>
+              Number(f.NoEntrega) === noEntregaFila &&
+              normalize(f.CodSerTecAEntregado ?? f.CodSerTecEntregado) === codTecNorm
             );
 
-            if (fExist) {
-              row['CUFE_ENCONTRADO'] = fExist.NoFactura || '';
-              row['FECHA_FACTURACION'] = fExist.FecFacturacion || fExist.FecFactura || '';
-              row['ID_FACTURACION'] = fExist.IDFacturacion || fExist.IdFacturacion || 'Existente';
+            const fActiva = matches.find(f => !isAnnuled(f.FecAnulacion));
+            refacturadaTrasAnulacion = matches.length > 0 && !fActiva;
+
+            if (fActiva) {
+              row['CUFE_ENCONTRADO'] = fActiva.NoFactura || '';
+              row['FECHA_FACTURACION'] = fActiva.FecFacturacion || fActiva.FecFactura || '';
+              row['ID_FACTURACION'] = fActiva.IDFacturacion || fActiva.IdFacturacion || 'Existente';
               row['Log_Facturacion'] = '⚠️ Ya existía (Datos recuperados por Código de Tecnología)';
               continue;
             }
+            // Si solo hay facturas anuladas, no se omite la fila: se procede a facturar de nuevo
           }
 
           // --- PASO 1: Obtener Datos de SISPRO (P3, P4, P5) ---
@@ -233,7 +245,9 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
           row['CUFE_ENCONTRADO'] = noFactura; 
           row['FECHA_FACTURACION'] = 'Recién Procesado';
           row['ID_FACTURACION'] = billId ? String(billId) : 'Exitoso';
-          row['Log_Facturacion'] = '✅ Factura registrada con éxito';
+          row['Log_Facturacion'] = refacturadaTrasAnulacion
+            ? '✅ Factura registrada con éxito (re-facturada tras anulación)'
+            : '✅ Factura registrada con éxito';
           row['RESPUESTA_SISPRO'] = JSON.stringify(result);
 
           await sleep(100);
@@ -248,13 +262,13 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
               const facturas = await MipresApi.getFacturacionXPrescripcion(nit, token, noPrescripcion);
               // Normalización que quita: no-alfanuméricos, ceros a la izquierda y espacios
               const normalize = (val) => String(val || '').replace(/[^a-zA-Z0-9]/g, '').replace(/^0+/, '').trim().toUpperCase();
-              const codTecNormCatch = normalize(row[keyCodTec]);
-              
+              const codTecNormCatch = normalize(codTecFila);
+
               const fExisting = Array.isArray(facturas) && facturas.find(f => {
-                const codFact = normalize(f.CodSerTecAEntregado);
+                const codFact = normalize(f.CodSerTecAEntregado ?? f.CodSerTecEntregado);
                 // Si el código del excel está contenido en la factura o viceversa (match parcial)
                 const isMatch = codFact.includes(codTecNormCatch) || codTecNormCatch.includes(codFact);
-                return Number(f.NoEntrega) === noEntregaFila && isMatch;
+                return Number(f.NoEntrega) === noEntregaFila && isMatch && !isAnnuled(f.FecAnulacion);
               });
 
               if (fExisting) {
@@ -262,6 +276,22 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
                 row['FECHA_FACTURACION'] = fExisting.FecFacturacion || '';
                 row['ID_FACTURACION'] = fExisting.IDFacturacion || 'Existente';
                 row['Log_Facturacion'] = '⚠️ Ya existía (Datos recuperados)';
+                continue;
+              }
+
+              const fAnulada = Array.isArray(facturas) && facturas.find(f => {
+                const codFact = normalize(f.CodSerTecAEntregado ?? f.CodSerTecEntregado);
+                const isMatch = codFact.includes(codTecNormCatch) || codTecNormCatch.includes(codFact);
+                return Number(f.NoEntrega) === noEntregaFila && isMatch && isAnnuled(f.FecAnulacion);
+              });
+
+              if (fAnulada) {
+                row['CUFE_ENCONTRADO'] = fAnulada.NoFactura || '';
+                row['FECHA_FACTURACION'] = fAnulada.FecFacturacion || fAnulada.FecFactura || '';
+                row['FECHA_ANULACION'] = fAnulada.FecAnulacion || '';
+                row['ID_FACTURACION'] = fAnulada.IDFacturacion || fAnulada.IdFacturacion || '';
+                row['Log_Facturacion'] = '⚠️ SISPRO reportó duplicado: la factura existente está anulada';
+                row['RESPUESTA_SISPRO'] = errorMsg;
                 continue;
               }
             } catch (e) {
@@ -280,15 +310,18 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
       const log = newRow['Log_Facturacion'] || '';
       const cufe = newRow['CUFE_ENCONTRADO'] || '';
       const fecha = newRow['FECHA_FACTURACION'] || '';
+      const fechaAnul = newRow['FECHA_ANULACION'] || '';
       const idS = newRow['ID_FACTURACION'] || '';
       
       delete newRow['Log_Facturacion'];
       delete newRow['CUFE_ENCONTRADO'];
       delete newRow['FECHA_FACTURACION'];
+      delete newRow['FECHA_ANULACION'];
       delete newRow['ID_FACTURACION'];
       
       newRow['CUFE_ENCONTRADO'] = cufe;
       newRow['FECHA_FACTURACION'] = fecha;
+      newRow['FECHA_ANULACION'] = fechaAnul;
       newRow['ID_FACTURACION'] = idS;
       newRow['Log_Facturacion'] = log;
       newRow['RESPUESTA_SISPRO'] = r['RESPUESTA_SISPRO'] || '';
