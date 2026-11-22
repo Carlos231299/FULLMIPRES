@@ -145,67 +145,10 @@ router.post('/excel', upload.single('archivo'), async (req, res) => {
           } catch (e) { /* vacio */ }
 
           if (!reportFinal) {
-            // --- CICLO AUTOMÁTICO DE EMERGENCIA ---
-            // Si no hay reporte, intentamos hacer todo el ciclo antes de facturar
-            try {
-              // 1. Obtener Direccionamiento Base
-              const dirs = await MipresApi.getDireccionamientoXPrescripcion(nit, token, noPrescripcion);
-              const dirSelect = Array.isArray(dirs) && dirs.find(d => Number(d.NoEntrega) === noEntregaFila);
-              
-              if (!dirSelect) throw new Error(`No se encontró direccionamiento para la entrega #${noEntregaFila}`);
-              const idDir = dirSelect.ID || dirSelect.IdDireccionamiento;
-
-              // 2. Programar (P3) - Solo si no estaba ya programado
-              let idProg = programFinal?.IdProgramacion || programFinal?.ID || null;
-              if (!programFinal) {
-                const resP3 = await MipresApi.programacion(nit, token, {
-                  ID: Number(idDir),
-                  FecMaxEnt: String(dirSelect.FecMaxEnt || ''),
-                  TipoIDSedeProv: 'NI',
-                  NoIDSedeProv: nit,
-                  CodSedeProv: 'PROV008934',
-                  CodSerTecAEntregar: codTecFila,
-                  CantTotAEntregar: String(dirSelect.CantTotAEntregar)
-                }).catch(() => null); // Ignorar si ya existía
-                const p3Data = Array.isArray(resP3) ? resP3[0] : resP3;
-                idProg = p3Data?.IdProgramacion || p3Data?.ID || idDir;
-              }
-
-              // ID a usar en P4 y P5: preferir idProgramacion, fallback a idDir
-              const idParaEntrega = Number(idProg || idDir);
-
-              // 3. Entregar (P4) - Con causa 0 (Efectiva) por defecto para facturar
-              let idEntregaCiclo = deliveryFinal?.IdEntrega || deliveryFinal?.ID || null;
-              if (!deliveryFinal) {
-                const resP4 = await MipresApi.entrega(nit, token, {
-                  ID: idDir,
-                  CodSerTecEntregado: codTecFila,
-                  CantTotEntregada: Number(dirSelect.CantTotAEntregar),
-                  EntTotal: 1,
-                  CausaNoEntrega: 0,
-                  FecEntrega: new Date().toISOString().split('T')[0],
-                  TipoIDRecibe: 'CC',
-                  NoIDRecibe: '12345678' // Genérico para masivo
-                }).catch(() => null);
-                const p4Data = Array.isArray(resP4) ? resP4[0] : resP4;
-                idEntregaCiclo = p4Data?.IdEntrega || p4Data?.ID || idParaEntrega;
-              }
-
-              // 4. Reportar (P5) — usar el id del Direccionamiento
-              const resP5 = await MipresApi.reporteEntrega(nit, token, {
-                ID: idDir,
-                EstadoEntrega: 1,
-                CausaNoEntrega: 0,
-                ValorEntregado: 0
-              });
-              
-              reportFinal = Array.isArray(resP5) ? resP5[0] : resP5;
-              row['Log_Facturacion'] = '⚡ Ciclo completado automáticamente';
-
-            } catch (errSync) {
-              row['Log_Facturacion'] = `Error en Ciclo Automático: ${errSync.message}`;
-              continue;
-            }
+            // Sin reporte de entrega en SISPRO: no se factura. La programación, la entrega y el
+            // reporte se hacen manualmente para poder verificarlos.
+            row['Log_Facturacion'] = '❌ Sin reporte de entrega en SISPRO para esta entrega/tecnología (no se facturó)';
+            continue;
           }
 
           // --- PASO 2: Facturar ---
