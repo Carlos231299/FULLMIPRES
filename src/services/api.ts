@@ -77,4 +77,11 @@ export const consultaMasivaReportes = (formData: FormData) =>
     headers: { 'Content-Type': 'multipart/form-data' }
   }).then(r => r.data);
 
+export const anulacionMasivaEntregas = (formData: FormData) =>
+  api.post('/batch/annul-entrega-excel', formData, {
+    responseType: 'blob',
+    timeout: 0,
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }).then(r => r.data);
+
 export default api;

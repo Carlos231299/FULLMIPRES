@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { sisproGet, sisproPut, getProcesos } from '../services/api';
+import { sisproGet, sisproPut, getProcesos, anulacionMasivaEntregas } from '../services/api';
+import * as xlsx from 'xlsx';
 import { DataGrid } from '../components/DataGrid';
 import { Modal } from '../components/Modal';
 import { useAsistente } from '../context/AsistenteContext';
@@ -23,6 +24,11 @@ export const EntregaPage = () => {
   const [selectedResult, setSelectedResult] = useState<any | null>(null);
   const [idLocalAsociado, setIdLocalAsociado] = useState<number | null>(null);
   const [showAnularConfirm, setShowAnularConfirm] = useState(false);
+
+  // Anulación masiva de entregas
+  const [masivoFile, setMasivoFile] = useState<File | null>(null);
+  const [masivoLoading, setMasivoLoading] = useState<'' | 'simular' | 'anular'>('');
+  const [showMasivoConfirm, setShowMasivoConfirm] = useState(false);
 
   const [formData, setFormData] = useState({
     ID: '',
@@ -116,6 +122,45 @@ export const EntregaPage = () => {
       setError(getErrorMsg(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const descargarPlantillaAnulacion = () => {
+    const ws = xlsx.utils.json_to_sheet([{ 'N\u00b0 MIPRES': '20241234567890', 'NOENTREGA': 1, 'COD_TEC': '', 'SOLO_SI_NOIDRECIBE': '12345678' }]);
+    ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 12 }, { wch: 22 }];
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, 'Plantilla');
+    const buf = xlsx.write(wb, { type: 'array', bookType: 'xlsx' });
+    const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'Plantilla_Anulacion_Entregas.xlsx'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const ejecutarMasivo = async (simular: boolean) => {
+    if (!masivoFile) { setError('Selecciona el Excel con N° MIPRES y NOENTREGA.'); return; }
+    setShowMasivoConfirm(false);
+    setMasivoLoading(simular ? 'simular' : 'anular');
+    clearError();
+    const fd = new FormData();
+    fd.append('archivo', masivoFile);
+    fd.append('nit', nit || '');
+    fd.append('token', token || '');
+    fd.append('simular', simular ? '1' : '0');
+    try {
+      const blob = await anulacionMasivaEntregas(fd);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${simular ? 'Simulacion' : 'Resumen'}_Anulacion_Entregas_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setSuccess(simular
+        ? 'Simulación lista: revisa el archivo descargado. No se anuló nada.'
+        : 'Anulación masiva terminada. El resumen se ha descargado.');
+    } catch (err: any) {
+      setError(getErrorMsg(err));
+    } finally {
+      setMasivoLoading('');
     }
   };
 
@@ -231,6 +276,53 @@ export const EntregaPage = () => {
           </>
         )}
       </Modal>
+
+      <hr style={{ margin: '2.5rem 0', border: 'none', borderTop: '2px solid #e2e8f0' }} />
+
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+          <h2 style={{ margin: 0, color: '#1e293b' }}>🚫 Anulación masiva de entregas</h2>
+          <button type="button" onClick={descargarPlantillaAnulacion} style={{ padding: '0.6rem 1.1rem', background: '#f1f5f9', color: '#1e293b', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
+            ⬇ Descargar plantilla
+          </button>
+        </div>
+        <ul style={{ color: '#64748b', marginTop: 0, marginBottom: '1rem', paddingLeft: '1.2rem', lineHeight: 1.6 }}>
+          <li>Excel con <strong>N° MIPRES</strong> y <strong>NOENTREGA</strong>. <strong>COD_TEC</strong> es opcional.</li>
+          <li><strong>SOLO_SI_NOIDRECIBE</strong> (opcional): solo anula si la entrega tiene esa cédula de quien recibe; las demás se omiten.</li>
+          <li style={{ color: '#b45309', fontWeight: 600 }}>Si la entrega tiene reporte activo, se anula primero el reporte y luego la entrega. Si está facturada, se omite.</li>
+          <li>Use <strong>Simular</strong> primero: muestra qué haría con cada fila sin anular nada.</li>
+        </ul>
+
+        <div style={{ padding: '1.5rem', border: '2px dashed #fca5a5', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem', background: '#fef2f2' }}>
+          <label style={{ cursor: 'pointer', display: 'block' }}>
+            <strong style={{ display: 'block', marginBottom: '0.4rem' }}>Selecciona el Excel de entregas a anular</strong>
+            <span style={{ color: '#64748b' }}>{masivoFile ? masivoFile.name : 'Ningún archivo seleccionado'}</span>
+            <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} disabled={!!masivoLoading}
+              onChange={(e) => setMasivoFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)} />
+          </label>
+        </div>
+
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button type="button" disabled={!masivoFile || !!masivoLoading} onClick={() => ejecutarMasivo(true)}
+            style={{ flex: 1, padding: '1rem', background: (masivoFile && !masivoLoading) ? '#2563eb' : '#94a3b8', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1.05rem', fontWeight: 'bold', cursor: (masivoFile && !masivoLoading) ? 'pointer' : 'not-allowed' }}>
+            {masivoLoading === 'simular' ? 'Simulando...' : '🔎 Simular'}
+          </button>
+          <button type="button" disabled={!masivoFile || !!masivoLoading} onClick={() => setShowMasivoConfirm(true)}
+            style={{ flex: 1, padding: '1rem', background: (masivoFile && !masivoLoading) ? '#dc2626' : '#94a3b8', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1.05rem', fontWeight: 'bold', cursor: (masivoFile && !masivoLoading) ? 'pointer' : 'not-allowed' }}>
+            {masivoLoading === 'anular' ? 'Anulando en SISPRO...' : '🚫 Anular entregas'}
+          </button>
+        </div>
+      </div>
+
+      <ConfirmDialog 
+        isOpen={showMasivoConfirm}
+        onClose={() => setShowMasivoConfirm(false)}
+        onConfirm={() => ejecutarMasivo(false)}
+        title="Confirmar anulación masiva"
+        message="⚠️ Se anularán en SISPRO las entregas del archivo (y sus reportes, si los tienen). Esta acción no se puede deshacer. ¿Continuar?"
+        confirmText="Anular entregas"
+        type="danger"
+      />
 
       <ConfirmDialog 
         isOpen={showAnularConfirm}

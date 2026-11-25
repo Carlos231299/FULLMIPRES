@@ -643,4 +643,147 @@ router.post('/query-reporte-entrega', upload.single('archivo'), async (req, res)
   }
 });
 
+// ============================================================
+// ANULACIÓN MASIVA - ENTREGAS (anula el reporte primero si existe)
+// Plantilla: N° MIPRES, NOENTREGA, [COD_TEC], [SOLO_SI_NOIDRECIBE]
+// simular=1 → solo muestra lo que haría, sin anular nada
+// ============================================================
+router.post('/annul-entrega-excel', upload.single('archivo'), async (req, res) => {
+  try {
+    const { nit, token } = req.body;
+    const simular = String(req.body.simular || '') === '1';
+
+    if (!req.file) return res.status(400).json({ ok: false, error: 'No se envió ningún archivo Excel.' });
+    if (!nit || !token) return res.status(400).json({ ok: false, error: 'NIT y Token son requeridos.' });
+
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const rows = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
+    if (rows.length === 0) return res.status(400).json({ ok: false, error: 'Excel vacío.' });
+
+    const sanitizeKey = (k) => String(k).trim().toUpperCase().replace(/[\s_.]+/g, '');
+    const vacio = (v) => { const s = String(v ?? '').trim().toLowerCase(); return s === '' || s === 'null' || s === 'undefined'; };
+    // Anulado si trae FecAnulacion o su estado (EstEntrega / EstRepEntrega / EstFacturacion) es 0
+    const anulado = (obj, campoEstado) => !vacio(obj?.FecAnulacion) || String(obj?.[campoEstado] ?? '') === '0';
+    const idDe = (obj, ...campos) => { for (const c of campos) { if (!vacio(obj?.[c])) return String(obj[c]); } return ''; };
+    const msgError = (err) => {
+      const d = err?.response?.data;
+      if (d && typeof d === 'object') return [d.Message, ...(Array.isArray(d.Errors) ? d.Errors : [])].filter(Boolean).join(' | ') || JSON.stringify(d);
+      return String(d || err?.message || err);
+    };
+
+    const salida = [];
+    const cachePres = new Map();
+
+    for (const row of rows) {
+      const keys = Object.keys(row);
+      const findKey = (...busq) => keys.find(k => busq.some(b => sanitizeKey(k) === sanitizeKey(b)))
+        || keys.find(k => busq.some(b => sanitizeKey(k).includes(sanitizeKey(b))));
+      const noPres = String(row[findKey('N°MIPRES', 'MIPRES', 'PRESCRIPCION')] ?? '').trim();
+      const noEnt = Number(row[findKey('NOENTREGA', 'ENTREGA')]) || 0;
+      const codTec = String(row[findKey('CODTEC', 'CODSERTEC')] ?? '').trim();
+      const soloSi = String(row[findKey('SOLOSINOIDRECIBE')] ?? '').trim();
+
+      const base = { 'N° MIPRES': noPres, NOENTREGA: noEnt || '', COD_TEC: codTec, SOLO_SI_NOIDRECIBE: soloSi };
+      const agregar = (extra) => salida.push({
+        ...base, IDEntrega: '', NoIDRecibe: '', TipoIDRecibe: '', CodSerTecEntregado: '', CantTotEntregada: '', FecEntrega: '',
+        IDReporteEntrega: '', ValorEntregado: '', Accion: '', Resultado: '', ...extra,
+      });
+
+      if (!noPres || !noEnt) { agregar({ Accion: 'Omitida', Resultado: 'Omitido: N° MIPRES o NOENTREGA incompleto' }); continue; }
+
+      try {
+        let datos = cachePres.get(noPres);
+        if (!datos) {
+          const [entregas, reportes, facturas] = await Promise.all([
+            MipresApi.getEntregaXPrescripcion(nit, token, noPres),
+            MipresApi.getReporteEntregaXPrescripcion(nit, token, noPres).catch(() => []),
+            MipresApi.getFacturacionXPrescripcion(nit, token, noPres).catch(() => []),
+          ]);
+          datos = {
+            entregas: Array.isArray(entregas) ? entregas : [],
+            reportes: Array.isArray(reportes) ? reportes : [],
+            facturas: Array.isArray(facturas) ? facturas : [],
+          };
+          cachePres.set(noPres, datos);
+          await sleep(150);
+        }
+
+        const todas = datos.entregas.filter(e => Number(e.NoEntrega) === noEnt
+          && (!codTec || String(e.CodSerTecEntregado ?? '').trim() === codTec));
+        const activas = todas.filter(e => !anulado(e, 'EstEntrega'));
+
+        if (activas.length === 0) {
+          agregar(todas.length
+            ? { IDEntrega: idDe(todas[0], 'IDEntrega', 'IdEntrega'), NoIDRecibe: todas[0].NoIDRecibe || '', Accion: 'Ninguna', Resultado: 'ℹ️ Ya estaba anulada' }
+            : { Accion: 'Ninguna', Resultado: `Sin entrega registrada para la entrega #${noEnt}${codTec ? ` con tecnología ${codTec}` : ''}` });
+          continue;
+        }
+
+        for (const ent of activas) {
+          const idEntrega = idDe(ent, 'IDEntrega', 'IdEntrega');
+          const idReg = idDe(ent, 'ID', 'Id');
+          const info = {
+            IDEntrega: idEntrega, NoIDRecibe: ent.NoIDRecibe || '', TipoIDRecibe: ent.TipoIDRecibe || '',
+            CodSerTecEntregado: ent.CodSerTecEntregado || '', CantTotEntregada: ent.CantTotEntregada || '', FecEntrega: ent.FecEntrega || '',
+          };
+
+          if (soloSi && String(ent.NoIDRecibe ?? '').trim() !== soloSi) {
+            agregar({ ...info, Accion: 'Omitida', Resultado: `Omitida: NoIDRecibe es ${ent.NoIDRecibe || '(vacío)'}, no ${soloSi}` });
+            continue;
+          }
+
+          const mismo = (x) => Number(x.NoEntrega) === noEnt && (!idReg || vacio(x.ID) || String(x.ID) === idReg);
+          const factura = datos.facturas.find(f => mismo(f) && !anulado(f, 'EstFacturacion'));
+          if (factura) {
+            agregar({ ...info, Accion: 'Omitida', Resultado: `⛔ Facturada (${idDe(factura, 'IDFacturacion', 'IdFacturacion')}): anule primero la factura` });
+            continue;
+          }
+
+          const reporte = datos.reportes.find(r => mismo(r) && !anulado(r, 'EstRepEntrega'));
+          const idReporte = reporte ? idDe(reporte, 'IDReporteEntrega', 'IdReporteEntrega') : '';
+          if (reporte) { info.IDReporteEntrega = idReporte; info.ValorEntregado = reporte.ValorEntregado ?? ''; }
+
+          if (simular) {
+            agregar({ ...info, Accion: reporte ? 'Anularía reporte + entrega' : 'Anularía entrega', Resultado: '🔎 Simulación: no se anuló nada' });
+            continue;
+          }
+
+          if (reporte) {
+            try {
+              await MipresApi.anularReporteEntrega(nit, token, idReporte);
+              reporte.FecAnulacion = 'anulado en esta carga';
+              await sleep(150);
+            } catch (err) {
+              agregar({ ...info, Accion: 'Error', Resultado: 'Error anulando reporte: ' + msgError(err) });
+              continue;
+            }
+          }
+          try {
+            await MipresApi.anularEntrega(nit, token, idEntrega);
+            ent.FecAnulacion = 'anulada en esta carga';
+            agregar({ ...info, Accion: reporte ? 'Reporte + entrega anulados' : 'Entrega anulada', Resultado: reporte ? '✅ Reporte y entrega anulados' : '✅ Entrega anulada' });
+          } catch (err) {
+            agregar({ ...info, Accion: 'Error', Resultado: (reporte ? '⚠️ Reporte anulado, pero falló la entrega: ' : 'Error anulando entrega: ') + msgError(err) });
+          }
+          await sleep(150);
+        }
+      } catch (err) {
+        agregar({ Accion: 'Error', Resultado: 'Error consultando SISPRO: ' + msgError(err) });
+      }
+    }
+
+    const ws = xlsx.utils.json_to_sheet(salida);
+    ws['!cols'] = [24, 11, 10, 20, 12, 13, 12, 18, 16, 18, 16, 15, 24, 60].map(wch => ({ wch }));
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, simular ? 'Simulacion' : 'Anulacion');
+    const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Disposition', `attachment; filename="${simular ? 'Simulacion' : 'Resumen'}_Anulacion_Entregas.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (err) {
+    console.error('[Anulacion Entregas Error]', err);
+    res.status(500).json({ ok: false, error: 'Error interno al anular entregas.' });
+  }
+});
+
 export default router;
