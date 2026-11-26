@@ -234,7 +234,7 @@ export const ReportePage = () => {
           <h2 style={{ margin: 0, color: '#1e293b' }}>Consulta Masiva de Reportes (solo lectura) 📋</h2>
         </div>
         <p style={{ color: '#64748b', marginBottom: '0.75rem' }}>
-          Sube un Excel con los números de prescripción (<strong>N° MIPRES</strong>). El sistema consultará SISPRO y devolverá el mismo archivo con las columnas <strong>NoEntrega</strong>, <strong>CodSerTecEntregado</strong>, <strong>CantTotEntregada</strong>, <strong>NoIDRecibe</strong>, <strong>IDEntrega</strong>, <strong>IDReporteEntrega</strong>, <strong>ValorEntregado</strong>, <strong>EstadoEntrega</strong> y <strong>Estado</strong>.
+          Sube un Excel con los números de prescripción (<strong>N° MIPRES</strong>). El sistema consultará SISPRO y devolverá el mismo archivo con las columnas <strong>ID</strong>, <strong>IDDireccionamiento</strong>, <strong>NoEntrega</strong>, <strong>CodSerTecEntregado</strong>, <strong>CantTotEntregada</strong>, <strong>NoIDRecibe</strong>, <strong>IDEntrega</strong>, <strong>IDReporteEntrega</strong>, <strong>ValorEntregado</strong>, <strong>EstadoEntrega</strong> y <strong>Estado</strong>.
         </p>
 
         <form onSubmit={handleQuerySubmit}>

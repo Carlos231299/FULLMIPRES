@@ -601,6 +601,8 @@ router.post('/query-reporte-entrega', upload.single('archivo'), async (req, res)
 
           const outRow = {
             ...row,
+            ID: idReg,
+            IDDireccionamiento: idDir,
             NoEntrega: noEnt,
             CodSerTec: matchEnt?.CodSerTecEntregado || dir.CodSerTecAEntregar || '',
             CantTotAEntregar: dir.CantTotAEntregar || '',
